@@ -1,45 +1,72 @@
-//! This example illustrates the way to send and receive statically typed JSON.
-//!
-//! In contrast to the arbitrary JSON example, this brings up the full power of
-//! Rust compile-time type system guaranties though it requires a little bit
-//! more code.
+use reqwest::blocking::Client;
+use serde::Deserialize;
+use std::error::Error;
 
-// These require the `serde` dependency.
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Post {
-    id: Option<i32>,
-    title: String,
-    body: String,
-    #[serde(rename = "userId")]
-    user_id: i32,
+#[derive(Deserialize, Debug)]
+struct Problem {
+    contestId: u32,
+    index: String,
+    rating: Option<u32>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), reqwest::Error> {
-    let new_post = Post {
-        id: None,
-        title: "Reqwest.rs".into(),
-        body: "https://docs.rs/reqwest".into(),
-        user_id: 1,
-    };
-    let new_post: Post = reqwest::Client::new()
-        .post("https://jsonplaceholder.typicode.com/posts")
-        .json(&new_post)
-        .send()
-        .await?
-        .json()
-        .await?;
+#[derive(Deserialize, Debug)]
+struct Contest {
+    id: u32,
+    name: String,
+    phase: String,
+}
 
-    println!("{new_post:#?}");
-    // Post {
-    //     id: Some(
-    //         101
-    //     ),
-    //     title: "Reqwest.rs",
-    //     body: "https://docs.rs/reqwest",
-    //     user_id: 1
-    // }
+#[derive(Deserialize, Debug)]
+struct Submission {
+    problem: Problem,
+    verdict: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct ApiResponse<T> {
+    status: String,
+    result: T,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let client = Client::new();
+
+    // Fetch problem set
+    let problems = fetch_problem_set(&client)?;
+    println!("Problem Set: {:?}", problems[0]);
+
+    // Fetch contest list
+    let contests = fetch_contests(&client)?;
+    println!("Contests: {:?}", contests[0]);
+
+    // Fetch submissions for a given user
+    let submissions = fetch_user_submissions(&client, "Exonerate")?;
+    println!("Submissions: {:?}", submissions[0]);
+
     Ok(())
+}
+
+// Function to get the problem set
+fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
+    let url = "https://codeforces.com/api/problemset.problems";
+    let response: ApiResponse<serde_json::Value> = client.get(url).send()?.json()?;
+    let problems: Vec<Problem> = serde_json::from_value(response.result["problems"].clone())?;
+    Ok(problems)
+}
+
+// Function to get contest list
+fn fetch_contests(client: &Client) -> Result<Vec<Contest>, Box<dyn Error>> {
+    let url = "https://codeforces.com/api/contest.list";
+    let response: ApiResponse<Vec<Contest>> = client.get(url).send()?.json()?;
+    Ok(response.result)
+}
+
+// Function to get submissions for a user
+fn fetch_user_submissions(
+    client: &Client,
+    handle: &str,
+) -> Result<Vec<Submission>, Box<dyn Error>> {
+    let url = format!("https://codeforces.com/api/user.status?handle={}", handle);
+    let response: ApiResponse<Vec<Submission>> = client.get(&url).send()?.json()?;
+    Ok(response.result)
 }
