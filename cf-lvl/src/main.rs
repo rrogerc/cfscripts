@@ -11,6 +11,14 @@ struct Problem {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let input = std::env::args().nth(1).expect("need to include a level");
+    let level: u32 = input.parse().expect("could not parse level");
+
+    if level < 8 || level > 32 {
+        println!("Level must be an integer between 8 and 32 inclusive");
+        return Ok(());
+    }
+
     let client = Client::new();
 
     // Fetch data
@@ -35,11 +43,24 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     filtered_problems.sort_by(|a, b| b.contestId.cmp(&a.contestId));
 
-    // Find and display the first problem with a rating of 800
-    if let Some(problem) = filtered_problems.iter().find(|p| p.rating == 800) {
-        println!("First problem with rating 800: {:?}", problem);
+    if let Some(problem) = filtered_problems.iter().find(|p| p.rating == level * 100) {
+        let url = format!(
+            "https://codeforces.com/contest/{}/problem/{}",
+            problem.contestId, problem.index
+        );
+
+        // Open the URL in Chrome
+        if webbrowser::open_browser(webbrowser::Browser::Chrome, &url).is_ok() {
+            println!("Opening problem");
+        } else {
+            println!("Failed to open problem");
+        }
     } else {
-        println!("No problem with rating 800 found.");
+        println!(
+            "No problem with rating {} found(Level {}).",
+            level * 100,
+            level
+        );
     }
     Ok(())
 }
