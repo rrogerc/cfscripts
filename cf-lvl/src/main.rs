@@ -1,7 +1,9 @@
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::env;
 use std::error::Error;
+use std::process;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Hash)]
 struct Problem {
@@ -12,11 +14,24 @@ struct Problem {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let input = std::env::args().nth(1).expect("need to include a level");
-    let level: u32 = input.parse().expect("could not parse level");
+    let input = env::args().nth(1).unwrap_or_else(|| {
+        println!(
+            "Codeforces Level\n\
+            Usage: cf-lvl [level]\n\
+            Where [level] is an integer between 8 and 32 inclusive \
+            corresponding to a problem rating of [level] * 100.\n\
+            Only problems from Div. 2 are selected."
+        );
+        process::exit(1);
+    });
+
+    let level: u32 = input.parse().unwrap_or_else(|_| {
+        println!("Error: Could not parse the provided level. Please provide a valid integer.");
+        process::exit(1);
+    });
 
     if level < 8 || level > 32 {
-        println!("Level must be an integer between 8 and 32 inclusive");
+        println!("Error: Level must be an integer between 8 and 32 inclusive.");
         return Ok(());
     }
 
