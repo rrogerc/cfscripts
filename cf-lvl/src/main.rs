@@ -5,7 +5,8 @@ use std::error::Error;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Hash)]
 struct Problem {
-    contestId: u32,
+    #[serde(rename = "contestId")]
+    contest_id: u32,
     index: String,
     rating: u32,
 }
@@ -28,28 +29,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let passed_problems_set: HashSet<(u32, String)> = passed_problems
         .into_iter()
-        .map(|problem| (problem.contestId, problem.index.clone()))
+        .map(|problem| (problem.contest_id, problem.index.clone()))
         .collect();
 
     // Filter rated_problems to include only those in div2_contests and not in passed_problems
     let mut filtered_problems: Vec<Problem> = rated_problems
         .into_iter()
         .filter(|problem| {
-            div2_contests.contains(&problem.contestId) // Ensure it's in a Div. 2 contest
-                && !passed_problems_set.contains(&(problem.contestId, problem.index.clone()))
-            // Exclude if already passed
+            div2_contests.contains(&problem.contest_id) // Ensure it's in a Div. 2 contest
+                && !passed_problems_set.contains(&(problem.contest_id, problem.index.clone()))
         })
         .collect();
 
-    filtered_problems.sort_by(|a, b| b.contestId.cmp(&a.contestId));
+    filtered_problems.sort_by(|a, b| b.contest_id.cmp(&a.contest_id));
 
     if let Some(problem) = filtered_problems.iter().find(|p| p.rating == level * 100) {
         let url = format!(
             "https://codeforces.com/contest/{}/problem/{}",
-            problem.contestId, problem.index
+            problem.contest_id, problem.index
         );
 
-        // Open the URL in Chrome
         if webbrowser::open_browser(webbrowser::Browser::Chrome, &url).is_ok() {
             println!("Opening problem");
         } else {
@@ -79,7 +78,8 @@ struct ApiResponse<T> {
 
 #[derive(Deserialize, Debug)]
 struct UnratedProblem {
-    contestId: u32,
+    #[serde(rename = "contestId")]
+    contest_id: u32,
     index: String,
     rating: Option<u32>,
 }
@@ -90,7 +90,6 @@ struct Submission {
     verdict: Option<String>,
 }
 
-// Function to get the problem set
 fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
     let url = "https://codeforces.com/api/problemset.problems";
     let response: ApiResponse<serde_json::Value> = client.get(url).send()?.json()?;
@@ -101,7 +100,7 @@ fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
         .into_iter()
         .filter_map(|unrated_problem| {
             unrated_problem.rating.map(|rating| Problem {
-                contestId: unrated_problem.contestId,
+                contest_id: unrated_problem.contest_id,
                 index: unrated_problem.index,
                 rating,
             })
@@ -111,7 +110,6 @@ fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
     Ok(rated_problems)
 }
 
-// Function to get contest list
 fn fetch_contests(client: &Client) -> Result<HashSet<u32>, Box<dyn Error>> {
     let url = "https://codeforces.com/api/contest.list";
     let response: ApiResponse<Vec<Contest>> = client.get(url).send()?.json()?;
@@ -126,7 +124,6 @@ fn fetch_contests(client: &Client) -> Result<HashSet<u32>, Box<dyn Error>> {
     Ok(contest_ids)
 }
 
-// Function to get submissions for a user
 fn fetch_user_submissions(
     client: &Client,
     handle: &str,
@@ -135,18 +132,18 @@ fn fetch_user_submissions(
     let response: ApiResponse<Vec<Submission>> = client.get(&url).send()?.json()?;
 
     let ok_rated_problems: HashSet<Problem> = response
-        .result // Access the vector of `Submission`s from the `ApiResponse`
+        .result
         .into_iter()
         .filter_map(|submission| {
             // Check if the verdict is `Some("OK")` and the rating is `Some`
             if submission.verdict.as_deref() == Some("OK") {
                 submission.problem.rating.map(|rating| Problem {
-                    contestId: submission.problem.contestId,
+                    contest_id: submission.problem.contest_id,
                     index: submission.problem.index.clone(),
                     rating,
                 })
             } else {
-                None // Exclude non-OK or unrated problems
+                None
             }
         })
         .collect();
