@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             problem.contest_id, problem.index
         );
 
-        if webbrowser::open_browser(webbrowser::Browser::Chrome, &url).is_ok() {
+        if webbrowser::open(&url).is_ok() {
             println!("Opening problem");
         } else {
             println!("Failed to open problem");
