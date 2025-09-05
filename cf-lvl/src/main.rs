@@ -14,13 +14,15 @@ struct Problem {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    const CUTOFF_TS: u64 = 1672531200; // 2023-01-01 00:00:00 UTC
+
     let input = env::args().nth(1).unwrap_or_else(|| {
         println!(
             "Codeforces Level\n\
             Usage: cf-lvl [level]\n\
             Where [level] is an integer between 8 and 32 inclusive \
             corresponding to a problem rating of [level] * 100.\n\
-            Only problems from Div. 2 are selected."
+            Only problems from Div. 2 are selected, and only from contests before 2023-01-01 (UTC)."
         );
         process::exit(1);
     });
@@ -39,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Fetch data
     let rated_problems = fetch_problem_set(&client)?;
-    let div2_contests = fetch_contests(&client)?;
+    let div2_contests = fetch_contests(&client, CUTOFF_TS)?;
     let passed_problems = fetch_user_submissions(&client, "Exonerate")?;
 
     let passed_problems_set: HashSet<(u32, String)> = passed_problems
@@ -83,6 +85,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 struct Contest {
     id: u32,
     name: String,
+    #[serde(rename = "startTimeSeconds")]
+    start_time_seconds: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -125,14 +129,21 @@ fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
     Ok(rated_problems)
 }
 
-fn fetch_contests(client: &Client) -> Result<HashSet<u32>, Box<dyn Error>> {
+fn fetch_contests(client: &Client, cutoff_ts: u64) -> Result<HashSet<u32>, Box<dyn Error>> {
     let url = "https://codeforces.com/api/contest.list";
     let response: ApiResponse<Vec<Contest>> = client.get(url).send()?.json()?;
 
     let contest_ids: HashSet<u32> = response
         .result
         .into_iter()
-        .filter(|contest| contest.name.contains("Div. 2") && !contest.name.contains("Div. 1"))
+        .filter(|contest| {
+            contest.name.contains("Div. 2")
+                && !contest.name.contains("Div. 1")
+                && contest
+                    .start_time_seconds
+                    .map(|ts| ts < cutoff_ts)
+                    .unwrap_or(false)
+        })
         .map(|contest| contest.id)
         .collect();
 
