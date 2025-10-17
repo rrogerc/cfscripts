@@ -29,7 +29,7 @@ impl Platform {
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args().skip(1);
 
-    let first = match args.next() {
+    let platform_arg = match args.next() {
         Some(arg) => arg,
         None => {
             print_usage();
@@ -37,9 +37,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let (platform, value) = match args.next() {
-        Some(rest) => (Platform::from_arg(&first)?, rest),
-        None => (Platform::Codeforces, first),
+    if matches!(platform_arg.as_str(), "-h" | "--help" | "help") {
+        print_usage();
+        return Ok(());
+    }
+
+    let value = match args.next() {
+        Some(v) => v,
+        None => {
+            print_usage();
+            process::exit(1);
+        }
+    };
+
+    let platform = match Platform::from_arg(&platform_arg) {
+        Ok(p) => p,
+        Err(msg) => {
+            println!("{}", msg);
+            print_usage();
+            process::exit(1);
+        }
     };
 
     let client = build_client()?;
@@ -62,9 +79,10 @@ fn print_usage() {
     println!(
         "Problem Picker\n\
         Usage:\n\
-          cf-lvl [level]               # Codeforces (default)\n\
+          cf-lvl codeforces [level]    # Codeforces Div. 2\n\
           cf-lvl atcoder [index]       # AtCoder ABC\n\
-        Levels map to problem ratings (level * 100) on Codeforces.\n\
-        For AtCoder, provide the task letter (a, b, c, ...)."
+        Notes:\n\
+          - Levels map to problem ratings (level * 100) on Codeforces.\n\
+          - For AtCoder, provide the task letter (a, b, c, ...)."
     );
 }

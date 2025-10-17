@@ -1,4 +1,3 @@
-use crate::utils;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -6,15 +5,12 @@ use std::error::Error;
 use std::thread;
 use std::time::Duration;
 
-const CUTOFF_TS: u64 = 1672531200; // 2023-01-01 00:00:00 UTC
 const ATCODER_HANDLE: &str = "Exonerate";
 const API_THROTTLE: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Deserialize, Clone)]
 struct AtcoderContest {
     id: String,
-    #[serde(rename = "start_epoch_second")]
-    start_epoch_second: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -66,13 +62,17 @@ pub fn run(client: &Client, index_input: &str) -> Result<(), Box<dyn Error>> {
         );
 
         if webbrowser::open(&url).is_ok() {
-            println!("Opening problem");
+            println!(
+                "Opening AtCoder ABC contest {} task {}",
+                problem.contest_id,
+                problem.id
+            );
         } else {
             println!("Failed to open problem");
         }
     } else {
         println!(
-            "No unsolved AtCoder ABC '{}' problem found before 2023.",
+            "No unsolved AtCoder ABC '{}' problem found.",
             task_letter.to_ascii_uppercase()
         );
     }
@@ -93,17 +93,11 @@ fn normalize_index(input: &str) -> Result<String, Box<dyn Error>> {
 fn fetch_abc_contests(client: &Client) -> Result<HashSet<String>, Box<dyn Error>> {
     let url = "https://kenkoooo.com/atcoder/resources/contests.json";
     throttle();
-    let contests: Vec<AtcoderContest> = utils::fetch_json(client, url, "contests.json")?;
+    let contests: Vec<AtcoderContest> = client.get(url).send()?.json()?;
 
     Ok(contests
         .into_iter()
-        .filter(|contest| {
-            contest.id.to_lowercase().starts_with("abc")
-                && contest
-                    .start_epoch_second
-                    .map(|ts| ts < CUTOFF_TS)
-                    .unwrap_or(false)
-        })
+        .filter(|contest| contest.id.to_lowercase().starts_with("abc"))
         .map(|contest| contest.id)
         .collect())
 }
@@ -111,7 +105,8 @@ fn fetch_abc_contests(client: &Client) -> Result<HashSet<String>, Box<dyn Error>
 fn fetch_problems(client: &Client) -> Result<Vec<AtcoderProblem>, Box<dyn Error>> {
     let url = "https://kenkoooo.com/atcoder/resources/problems.json";
     throttle();
-    utils::fetch_json(client, url, "problems.json")
+    let problems: Vec<AtcoderProblem> = client.get(url).send()?.json()?;
+    Ok(problems)
 }
 
 fn fetch_user_submissions(client: &Client) -> Result<HashSet<String>, Box<dyn Error>> {
@@ -127,8 +122,7 @@ fn fetch_user_submissions(client: &Client) -> Result<HashSet<String>, Box<dyn Er
         );
 
         throttle();
-        let submissions: Vec<AtcoderSubmission> =
-            utils::fetch_json(client, &url, "results")?;
+        let submissions: Vec<AtcoderSubmission> = client.get(&url).send()?.json()?;
 
         if submissions.is_empty() {
             break;
