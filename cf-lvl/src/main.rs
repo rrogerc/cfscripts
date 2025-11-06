@@ -114,7 +114,7 @@ fn print_usage() {
           cf-lvl codeforces --level [level]  # Codeforces by rating level (x100)\n\
         Notes:\n\
           - For Codeforces, default is the problem index letter (A, B, C, ...).\n\
-          - Use --level (or -l) to select by Codeforces rating level (level * 100).\n\
+          - Use --level (or -l) to select by Codeforces rating level (level * 100), minumum 800.\n\
           - For AtCoder, provide the task letter (a, b, c, ...)."
     );
 }
