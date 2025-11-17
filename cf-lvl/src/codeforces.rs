@@ -1,6 +1,6 @@
 use reqwest::blocking::Client;
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
 
 const CODEFORCES_HANDLE: &str = "Exonerate";
@@ -80,7 +80,7 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
 
     if let Some(problem) = best {
         let url = format!(
-            "https://codeforces.com/contest/{}/problem/{}",
+            "https://codeforces.com/problemset/problem/{}/{}",
             problem.contest_id, problem.index
         );
 
@@ -100,6 +100,33 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             target_rating,
             level
         );
+    }
+
+    Ok(())
+}
+
+pub fn run_distribution(client: &Client) -> Result<(), Box<dyn Error>> {
+    let rated_problems = fetch_problem_set(client)?;
+    let div2_contests = fetch_contests(client)?;
+
+    let mut distribution: BTreeMap<u32, u32> = BTreeMap::new();
+
+    for problem in rated_problems.into_iter() {
+        if div2_contests.contains(&problem.contest_id) {
+            *distribution.entry(problem.rating).or_insert(0) += 1;
+        }
+    }
+
+    if distribution.is_empty() {
+        println!("No rated Codeforces Div. 2 problems found.");
+    } else {
+        println!("Rating distribution for Codeforces Div. 2 problems:");
+        let mut total: u32 = 0;
+        for (rating, count) in &distribution {
+            println!("  {}: {}", rating, count);
+            total += *count;
+        }
+        println!("Total problems: {}", total);
     }
 
     Ok(())
@@ -145,7 +172,7 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
 
     if let Some(problem) = best {
         let url = format!(
-            "https://codeforces.com/contest/{}/problem/{}",
+            "https://codeforces.com/problemset/problem/{}/{}",
             problem.contest_id, problem.index
         );
 

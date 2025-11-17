@@ -70,7 +70,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             //   cf-lvl codeforces <num> --level
             let is_flag = |s: &str| s == "--level" || s == "-l";
 
-            if is_flag(&rest[0]) {
+            if matches!(rest[0].as_str(), "dist" | "distribution" | "stats") {
+                cf::run_distribution(&client)
+            } else if is_flag(&rest[0]) {
                 if rest.len() < 2 {
                     println!("Error: Missing level after {}.", rest[0]);
                     process::exit(1);
@@ -110,6 +112,7 @@ fn print_usage() {
         "Problem Picker\n\
         Usage:\n\
           cf-lvl codeforces [index]         # Codeforces Div. 2 by index\n\
+          cf-lvl codeforces dist            # Rating distribution of Codeforces Div. 2 problems\n\
           cf-lvl atcoder [index]             # AtCoder ABC\n\
           cf-lvl codeforces --level [level]  # Codeforces by rating level (x100)\n\
         Notes:\n\
