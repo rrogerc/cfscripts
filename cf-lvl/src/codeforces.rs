@@ -2,8 +2,12 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::PathBuf;
 
 const CODEFORCES_HANDLE: &str = "Exonerate";
+const CODEFORCES_CPP_DIR: &str = "/Users/rogerchen/Developer/competitive/Codeforces";
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Hash)]
 struct Problem {
@@ -11,6 +15,7 @@ struct Problem {
     contest_id: u32,
     index: String,
     rating: u32,
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +45,7 @@ struct UnratedProblem {
     #[serde(rename = "contestId")]
     contest_id: u32,
     index: String,
+    name: String,
     rating: Option<u32>,
 }
 
@@ -83,6 +89,10 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             "https://codeforces.com/problemset/problem/{}/{}",
             problem.contest_id, problem.index
         );
+
+        if let Err(err) = create_cpp_stub(&problem) {
+            eprintln!("Warning: could not create starter file: {}", err);
+        }
 
         if webbrowser::open(&url).is_ok() {
             println!(
@@ -176,6 +186,10 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             problem.contest_id, problem.index
         );
 
+        if let Err(err) = create_cpp_stub(&problem) {
+            eprintln!("Warning: could not create starter file: {}", err);
+        }
+
         if webbrowser::open(&url).is_ok() {
             println!(
                 "Opening Codeforces Div. 2 contest {} problem {}",
@@ -213,6 +227,7 @@ fn fetch_problem_set(client: &Client) -> Result<Vec<Problem>, Box<dyn Error>> {
             problem.rating.map(|rating| Problem {
                 contest_id: problem.contest_id,
                 index: problem.index,
+                name: problem.name,
                 rating,
             })
         })
@@ -248,6 +263,7 @@ fn fetch_user_submissions(client: &Client) -> Result<HashSet<Problem>, Box<dyn E
                 submission.problem.rating.map(|rating| Problem {
                     contest_id: submission.problem.contest_id,
                     index: submission.problem.index.clone(),
+                    name: submission.problem.name.clone(),
                     rating,
                 })
             } else {
@@ -255,4 +271,64 @@ fn fetch_user_submissions(client: &Client) -> Result<HashSet<Problem>, Box<dyn E
             }
         })
         .collect())
+}
+
+fn create_cpp_stub(problem: &Problem) -> Result<PathBuf, Box<dyn Error>> {
+    fs::create_dir_all(CODEFORCES_CPP_DIR)?;
+
+    let file_name = format!("{}.cpp", sanitize_filename(&problem.name));
+    let path = PathBuf::from(CODEFORCES_CPP_DIR).join(file_name);
+
+    if path.exists() {
+        return Ok(path);
+    }
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+
+    let starter = r#"#include <iostream>
+
+void solve();
+
+int main() {
+    int count_test_cases;
+
+    std::cin >> count_test_cases;
+
+    while (count_test_cases--) {
+        solve();
+    }
+}
+
+void solve() {
+}
+"#;
+
+    file.write_all(starter.as_bytes())?;
+    println!("Created starter file at {}", path.display());
+    Ok(path)
+}
+
+fn sanitize_filename(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| {
+            if c == '/' || c == '\\' {
+                '-'
+            } else if c.is_control() {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        "problem".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
