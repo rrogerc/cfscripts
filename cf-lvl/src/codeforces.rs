@@ -349,10 +349,10 @@ fn sanitize_filename(name: &str) -> String {
     }
 }
 
-fn get_display_path(path: &Path) -> String {
+fn get_display_path(p: &Path) -> String {
     // 1. Try relative path from CWD
     if let Ok(cwd) = env::current_dir() {
-        if let Some(diff) = diff_paths(path, &cwd) {
+        if let Some(diff) = diff_paths(p, &cwd) {
             return diff.display().to_string();
         }
     }
@@ -360,13 +360,13 @@ fn get_display_path(path: &Path) -> String {
     // 2. Try ~ replacement
     if let Ok(home) = env::var("HOME") {
         let home_path = Path::new(&home);
-        if let Ok(stripped) = path.strip_prefix(home_path) {
+        if let Ok(stripped) = p.strip_prefix(home_path) {
             return format!("~/{}", stripped.display());
         }
     }
 
     // 3. Fallback to absolute
-    path.display().to_string()
+    p.display().to_string()
 }
 
 fn diff_paths(path: &Path, base: &Path) -> Option<PathBuf> {
