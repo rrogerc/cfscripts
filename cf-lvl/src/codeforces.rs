@@ -104,13 +104,16 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             problem.name, problem.contest_id, problem.index
         );
         println!("Rating:    {}", problem.rating);
-        if let Some((path, created)) = file_info {
-            let status = if created { "Created" } else { "Exists" };
-            println!("File:      {} ({})", get_display_path(&path), status);
-        }
-
-        if webbrowser::open(&url).is_err() {
-            println!("Warning: Failed to open problem in browser.");
+        if let Some((path, _created)) = file_info {
+            if webbrowser::open(&url).is_err() {
+                println!("Warning: Failed to open problem in browser.");
+            }
+            println!("nvim \"{}\"", get_display_path(&path));
+        } else {
+            // If file creation failed, print browser warning here if not already printed
+            if webbrowser::open(&url).is_err() {
+                println!("Warning: Failed to open problem in browser.");
+            }
         }
     } else {
         println!(
@@ -206,13 +209,16 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             problem.name, problem.contest_id, problem.index
         );
         println!("Rating:    {}", problem.rating);
-        if let Some((path, created)) = file_info {
-            let status = if created { "Created" } else { "Exists" };
-            println!("File:      {} ({})", get_display_path(&path), status);
-        }
-
-        if webbrowser::open(&url).is_err() {
-            println!("Warning: Failed to open problem in browser.");
+        if let Some((path, _created)) = file_info {
+            if webbrowser::open(&url).is_err() {
+                println!("Warning: Failed to open problem in browser.");
+            }
+            println!("nvim \"{}\"", get_display_path(&path));
+        } else {
+            // If file creation failed, print browser warning here if not already printed
+            if webbrowser::open(&url).is_err() {
+                println!("Warning: Failed to open problem in browser.");
+            }
         }
     } else {
         println!("No unsolved Codeforces Div. 2 '{}' problem found.", letter);
