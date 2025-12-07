@@ -5,7 +5,7 @@ use std::env;
 use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 const CODEFORCES_HANDLE: &str = "Exonerate";
 const CODEFORCES_CPP_DIR: &str = "/Users/rogerchen/Developer/competitive/Codeforces";
@@ -99,23 +99,23 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             }
         };
 
-        println!("Problem:   {} ({} {})", problem.name, problem.contest_id, problem.index);
+        println!(
+            "Problem:   {} ({} {})",
+            problem.name, problem.contest_id, problem.index
+        );
         println!("Rating:    {}", problem.rating);
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
             println!("File:      {} ({})", get_display_path(&path), status);
         }
 
-        if webbrowser::open(&url).is_ok() {
-            println!("Action:    Opened in browser");
-        } else {
-            println!("Action:    Failed to open browser");
+        if webbrowser::open(&url).is_err() {
+            println!("Warning: Failed to open problem in browser.");
         }
     } else {
         println!(
             "No problem with rating {} found (Level {}).",
-            target_rating,
-            level
+            target_rating, level
         );
     }
 
@@ -201,24 +201,21 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             }
         };
 
-        println!("Problem:   {} ({} {})", problem.name, problem.contest_id, problem.index);
+        println!(
+            "Problem:   {} ({} {})",
+            problem.name, problem.contest_id, problem.index
+        );
         println!("Rating:    {}", problem.rating);
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
             println!("File:      {} ({})", get_display_path(&path), status);
         }
 
-        if webbrowser::open(&url).is_ok() {
-            println!("Action:    Opened in browser");
-        } else {
-            println!("Action:    Failed to open browser");
+        if webbrowser::open(&url).is_err() {
+            println!("Warning: Failed to open problem in browser.");
         }
-    }
-    else {
-        println!(
-            "No unsolved Codeforces Div. 2 '{}' problem found.",
-            letter
-        );
+    } else {
+        println!("No unsolved Codeforces Div. 2 '{}' problem found.", letter);
     }
 
     Ok(())
@@ -257,9 +254,7 @@ fn fetch_contests(client: &Client) -> Result<HashSet<u32>, Box<dyn Error>> {
     Ok(response
         .result
         .into_iter()
-        .filter(|contest| {
-            contest.name.contains("Div. 2") && !contest.name.contains("Div. 1")
-        })
+        .filter(|contest| contest.name.contains("Div. 2") && !contest.name.contains("Div. 1"))
         .map(|contest| contest.id)
         .collect())
 }
