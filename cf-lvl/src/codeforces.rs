@@ -90,19 +90,25 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             problem.contest_id, problem.index
         );
 
-        if let Err(err) = create_cpp_stub(&problem) {
-            eprintln!("Warning: could not create starter file: {}", err);
+        let file_info = match create_cpp_stub(&problem) {
+            Ok((path, created)) => Some((path, created)),
+            Err(err) => {
+                eprintln!("Warning: could not create starter file: {}", err);
+                None
+            }
+        };
+
+        println!("Problem:   {} ({} {})", problem.name, problem.contest_id, problem.index);
+        println!("Rating:    {}", problem.rating);
+        if let Some((path, created)) = file_info {
+            let status = if created { "Created" } else { "Exists" };
+            println!("File:      {} ({})", path.display(), status);
         }
 
         if webbrowser::open(&url).is_ok() {
-            println!(
-                "Opening Codeforces Div. 2 problem: contest {} problem {} (rating {})",
-                problem.contest_id,
-                problem.index,
-                problem.rating
-            );
+            println!("Action:    Opened in browser");
         } else {
-            println!("Failed to open problem");
+            println!("Action:    Failed to open browser");
         }
     } else {
         println!(
@@ -186,17 +192,25 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             problem.contest_id, problem.index
         );
 
-        if let Err(err) = create_cpp_stub(&problem) {
-            eprintln!("Warning: could not create starter file: {}", err);
+        let file_info = match create_cpp_stub(&problem) {
+            Ok((path, created)) => Some((path, created)),
+            Err(err) => {
+                eprintln!("Warning: could not create starter file: {}", err);
+                None
+            }
+        };
+
+        println!("Problem:   {} ({} {})", problem.name, problem.contest_id, problem.index);
+        println!("Rating:    {}", problem.rating);
+        if let Some((path, created)) = file_info {
+            let status = if created { "Created" } else { "Exists" };
+            println!("File:      {} ({})", path.display(), status);
         }
 
         if webbrowser::open(&url).is_ok() {
-            println!(
-                "Opening Codeforces Div. 2 contest {} problem {}",
-                problem.contest_id, problem.index
-            );
+            println!("Action:    Opened in browser");
         } else {
-            println!("Failed to open problem");
+            println!("Action:    Failed to open browser");
         }
     } else {
         println!(
@@ -273,14 +287,14 @@ fn fetch_user_submissions(client: &Client) -> Result<HashSet<Problem>, Box<dyn E
         .collect())
 }
 
-fn create_cpp_stub(problem: &Problem) -> Result<PathBuf, Box<dyn Error>> {
+fn create_cpp_stub(problem: &Problem) -> Result<(PathBuf, bool), Box<dyn Error>> {
     fs::create_dir_all(CODEFORCES_CPP_DIR)?;
 
     let file_name = format!("{}.cpp", sanitize_filename(&problem.name));
     let path = PathBuf::from(CODEFORCES_CPP_DIR).join(file_name);
 
     if path.exists() {
-        return Ok(path);
+        return Ok((path, false));
     }
 
     let mut file = OpenOptions::new()
@@ -307,8 +321,7 @@ void solve() {
 "#;
 
     file.write_all(starter.as_bytes())?;
-    println!("Created starter file at {}", path.display());
-    Ok(path)
+    Ok((path, true))
 }
 
 fn sanitize_filename(name: &str) -> String {
