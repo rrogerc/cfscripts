@@ -64,8 +64,7 @@ pub fn run(client: &Client, index_input: &str) -> Result<(), Box<dyn Error>> {
         if webbrowser::open(&url).is_ok() {
             println!(
                 "Opening AtCoder ABC contest {} task {}",
-                problem.contest_id,
-                problem.id
+                problem.contest_id, problem.id
             );
         } else {
             println!("Failed to open problem");
@@ -117,8 +116,7 @@ fn fetch_user_submissions(client: &Client) -> Result<HashSet<String>, Box<dyn Er
     loop {
         let url = format!(
             "https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions?user={}&from_second={}",
-            handle,
-            from_second
+            handle, from_second
         );
 
         throttle();
