@@ -1,10 +1,11 @@
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
+use std::env;
 use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 const CODEFORCES_HANDLE: &str = "Exonerate";
 const CODEFORCES_CPP_DIR: &str = "/Users/rogerchen/Developer/competitive/Codeforces";
@@ -102,7 +103,7 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
         println!("Rating:    {}", problem.rating);
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
-            println!("File:      {} ({})", path.display(), status);
+            println!("File:      {} ({})", get_display_path(&path), status);
         }
 
         if webbrowser::open(&url).is_ok() {
@@ -204,7 +205,7 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
         println!("Rating:    {}", problem.rating);
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
-            println!("File:      {} ({})", path.display(), status);
+            println!("File:      {} ({})", get_display_path(&path), status);
         }
 
         if webbrowser::open(&url).is_ok() {
@@ -212,7 +213,8 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
         } else {
             println!("Action:    Failed to open browser");
         }
-    } else {
+    }
+    else {
         println!(
             "No unsolved Codeforces Div. 2 '{}' problem found.",
             letter
@@ -344,4 +346,48 @@ fn sanitize_filename(name: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn get_display_path(path: &Path) -> String {
+    // 1. Try relative path from CWD
+    if let Ok(cwd) = env::current_dir() {
+        if let Some(diff) = diff_paths(path, &cwd) {
+            return diff.display().to_string();
+        }
+    }
+
+    // 2. Try ~ replacement
+    if let Ok(home) = env::var("HOME") {
+        let home_path = Path::new(&home);
+        if let Ok(stripped) = path.strip_prefix(home_path) {
+            return format!("~/{}", stripped.display());
+        }
+    }
+
+    // 3. Fallback to absolute
+    path.display().to_string()
+}
+
+fn diff_paths(path: &Path, base: &Path) -> Option<PathBuf> {
+    let path_comps: Vec<_> = path.components().collect();
+    let base_comps: Vec<_> = base.components().collect();
+
+    let mut i = 0;
+    while i < path_comps.len() && i < base_comps.len() && path_comps[i] == base_comps[i] {
+        i += 1;
+    }
+
+    if i == 0 {
+        return None;
+    }
+
+    let mut new_path = PathBuf::new();
+    for _ in i..base_comps.len() {
+        new_path.push("..");
+    }
+    for component in &path_comps[i..] {
+        new_path.push(component);
+    }
+
+    Some(new_path)
 }
