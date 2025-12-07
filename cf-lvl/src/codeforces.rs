@@ -5,10 +5,9 @@ use std::env;
 use std::error::Error;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::os::unix::process::CommandExt;
-
 
 const CODEFORCES_HANDLE: &str = "Exonerate";
 const CODEFORCES_CPP_DIR: &str = "/Users/rogerchen/Developer/competitive/Codeforces";
@@ -110,7 +109,7 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
             println!("File:      {} ({})", get_display_path(&path), status);
-            
+
             if webbrowser::open(&url).is_err() {
                 println!("Warning: Failed to open problem in browser.");
             }
@@ -119,9 +118,7 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             let nvim_path = get_display_path(&path);
 
             // Execute nvim, replacing the current process
-            let err = Command::new("nvim")
-                .arg(&nvim_path)
-                .exec();
+            let err = Command::new("nvim").arg(&nvim_path).exec();
 
             // If exec() returns, it means it failed to start nvim
             eprintln!("Error: Failed to execute nvim: {}", err);
@@ -229,7 +226,7 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
         if let Some((path, created)) = file_info {
             let status = if created { "Created" } else { "Exists" };
             println!("File:      {} ({})", get_display_path(&path), status);
-            
+
             if webbrowser::open(&url).is_err() {
                 println!("Warning: Failed to open problem in browser.");
             }
@@ -238,9 +235,7 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             let nvim_path = get_display_path(&path);
 
             // Execute nvim, replacing the current process
-            let err = Command::new("nvim")
-                .arg(&nvim_path)
-                .exec();
+            let err = Command::new("nvim").arg(&nvim_path).exec();
 
             // If exec() returns, it means it failed to start nvim
             eprintln!("Error: Failed to execute nvim: {}", err);
