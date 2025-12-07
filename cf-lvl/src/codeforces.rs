@@ -104,7 +104,10 @@ pub fn run_level(client: &Client, level: u32) -> Result<(), Box<dyn Error>> {
             problem.name, problem.contest_id, problem.index
         );
         println!("Rating:    {}", problem.rating);
-        if let Some((path, _created)) = file_info {
+        if let Some((path, created)) = file_info {
+            let status = if created { "Created" } else { "Exists" };
+            println!("File:      {} ({})", get_display_path(&path), status);
+            
             if webbrowser::open(&url).is_err() {
                 println!("Warning: Failed to open problem in browser.");
             }
@@ -209,7 +212,10 @@ pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error
             problem.name, problem.contest_id, problem.index
         );
         println!("Rating:    {}", problem.rating);
-        if let Some((path, _created)) = file_info {
+        if let Some((path, created)) = file_info {
+            let status = if created { "Created" } else { "Exists" };
+            println!("File:      {} ({})", get_display_path(&path), status);
+            
             if webbrowser::open(&url).is_err() {
                 println!("Warning: Failed to open problem in browser.");
             }
