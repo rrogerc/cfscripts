@@ -166,6 +166,42 @@ pub fn run_distribution(client: &Client) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+pub fn run_stats(client: &Client) -> Result<(), Box<dyn Error>> {
+    let div2_contests = fetch_contests(client)?;
+    let passed_problems = fetch_user_submissions(client)?;
+
+    let mut stats: BTreeMap<u32, u32> = BTreeMap::new();
+
+    for problem in passed_problems {
+        if div2_contests.contains(&problem.contest_id) {
+            *stats.entry(problem.rating).or_insert(0) += 1;
+        }
+    }
+
+    if stats.is_empty() {
+        println!("No solved Codeforces Div. 2 problems found.");
+    } else {
+        println!("Solved problems stats for Codeforces Div. 2:");
+        let mut total: u32 = 0;
+        let max_count = stats.values().max().unwrap_or(&0);
+        let scale = if *max_count > 50 {
+            50.0 / *max_count as f32
+        } else {
+            1.0
+        };
+
+        for (rating, count) in &stats {
+            let bar_len = (*count as f32 * scale).round() as usize;
+            let bar: String = std::iter::repeat('#').take(bar_len).collect();
+            println!("{:4}: {:3} | {}", rating, count, bar);
+            total += *count;
+        }
+        println!("Total solved: {}", total);
+    }
+
+    Ok(())
+}
+
 pub fn run_index(client: &Client, index_input: &str) -> Result<(), Box<dyn Error>> {
     let letter = normalize_index(index_input)?;
 

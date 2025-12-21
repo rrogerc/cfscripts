@@ -65,8 +65,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             let is_index_flag = |s: &str| s == "--index" || s == "-i";
             let is_level_flag = |s: &str| s == "--level" || s == "-l";
 
-            if matches!(rest[0].as_str(), "dist" | "distribution" | "stats") {
+            if matches!(rest[0].as_str(), "dist" | "distribution") {
                 cf::run_distribution(&client)
+            } else if rest[0] == "stats" {
+                cf::run_stats(&client)
             } else if rest.len() >= 2 && is_index_flag(&rest[0]) {
                 cf::run_index(&client, &rest[1])
             } else if rest.len() >= 2 && is_index_flag(&rest[1]) {
@@ -119,6 +121,7 @@ fn print_usage() {
           cf-lvl [level]                     # Codeforces Div. 2 by level (x100), default platform\n\
           cf-lvl --index [letter]            # Codeforces Div. 2 by index (A, B, C, ...)\n\
           cf-lvl dist                        # Rating distribution of Codeforces Div. 2 problems\n\
+          cf-lvl stats                       # Rating stats of solved Codeforces Div. 2 problems\n\
           cf-lvl atcoder [index]             # AtCoder ABC (explicit platform)\n\
           cf-lvl codeforces ...              # Optional explicit Codeforces platform prefix\n\
         Notes:\n\
