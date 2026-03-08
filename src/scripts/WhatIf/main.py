@@ -70,7 +70,7 @@ def main():
 
     GROUP = None
 
-    handle = Prompt.ask("CodeForces handle")
+    handle = "Exonerate"
     contest_ids = get_participated_contest_ids(handle)
     amount = IntPrompt.ask(
         "Amount of contests to go back (at most {})".format(len(contest_ids)),

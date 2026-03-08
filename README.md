@@ -49,7 +49,7 @@ $ ./cfscripts.exe
 
 When running `cfscripts` it will ask you to choose a script, and the script will guide you from there.
 
-## 💻 Development 
+## 💻 Development
 The following sections explain the various parts of the project from a development perspective.
 
 ### Prerequisites
@@ -77,7 +77,7 @@ $ pipenv run cfscripts
 Run a specific script directory without building using (see `Pipfile` for script-names in the `[scripts]` section):
 ```bash
 $ pipenv run <script-name>
-``` 
+```
 To add a pip-package to the environment use:
 ```
 $ pipenv install <package-name>
