@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from .rating import RatingTracker, get_rating_changes_for_contest, get_ratedlist
 from .api import NoRatingChangesError
 from .contests import get_contest_and_standings
@@ -8,6 +10,22 @@ class UserPerformanceCalculator:
     def __init__(self, handle):
         self.handle = handle
         self.rating_tracker = RatingTracker(self.handle)
+
+    def prefetch(self, contest_ids, max_workers=3):
+        """Pre-fetch standings and rating changes for all contests in parallel to populate cache."""
+        def fetch_one(contest_id):
+            try:
+                get_contest_and_standings(contest_id)
+            except Exception:
+                pass
+            try:
+                get_rating_changes_for_contest(contest_id)
+            except NoRatingChangesError:
+                pass
+            except Exception:
+                pass
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(fetch_one, contest_ids))
 
     def get_performance(self, contest_id, current_rating=None):
         contest, standings = get_contest_and_standings(contest_id)

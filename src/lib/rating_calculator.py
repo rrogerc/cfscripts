@@ -74,11 +74,38 @@ class CodeforcesRatingCalculator:
 
     def _process(self):
         """Process and assign approximate delta for each contestant."""
-        for a in self.contestants:
-            a.seed = self.get_seed(a.rating, a)
-            mid_rank = (a.rank * a.seed) ** 0.5
-            a.need_rating = self._rank_to_rating(mid_rank, a)
-            a.delta = intdiv(a.need_rating - a.rating, 2)
+        n = len(self.contestants)
+        if n == 0:
+            return
+        ratings = np.array([a.rating for a in self.contestants], dtype=np.int64)
+        ranks = np.array([a.rank for a in self.contestants], dtype=np.float64)
+
+        # Seed at own rating minus self-contribution: elo_win_prob[rating - rating] = elo_win_prob[0]
+        seeds = self.seed[ratings] - self.elo_win_prob[0]
+
+        mid_ranks = np.sqrt(ranks * seeds)
+
+        # Vectorized binary search across all contestants simultaneously
+        left = np.ones(n, dtype=np.int64)
+        right = np.full(n, 8000, dtype=np.int64)
+        for _ in range(13):  # ceil(log2(7999)) = 13 iterations
+            mid = (left + right) // 2
+            seed_at_mid = self.seed[mid] - self.elo_win_prob[mid - ratings]
+            go_right = seed_at_mid < mid_ranks
+            left = np.where(go_right, left, mid)
+            right = np.where(go_right, mid, right)
+
+        need_ratings = left
+
+        # intdiv toward zero: -(-x // y) if x < 0 else x // y
+        diff = need_ratings - ratings
+        deltas = np.where(diff < 0, -(-diff // 2), diff // 2)
+
+        # Write back to contestant objects
+        for i, a in enumerate(self.contestants):
+            a.seed = float(seeds[i])
+            a.need_rating = int(need_ratings[i])
+            a.delta = int(deltas[i])
 
     def _rank_to_rating(self, rank, me):
         """Binary Search to find the performance rating for a given rank."""

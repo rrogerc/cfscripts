@@ -75,6 +75,7 @@ def main():
     only_positive = False
     calculator = UserPerformanceCalculator(handle)
     old_rating = calculator.rating_tracker.get_rating_at_time(contest_ids[0][1])
+    calculator.prefetch([cid for cid, _ in contest_ids])
 
     TABLE = get_table(handle)
     GROUP = Group("loading...", TABLE)
