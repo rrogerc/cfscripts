@@ -92,7 +92,7 @@ def main():
         for i, (contest_id, time) in enumerate(contest_ids):
             live.update(Text("Evaluating {}/{}: {} ...".format(i + 1, n_total, contest_map[contest_id]["name"])))
             data = calculator.get_performance(contest_id, real_rating)
-            if data["points"] < 10:
+            if data["points"] <= 0:
                 continue
             if skip_virtual and data["participation_type"] == "virtual":
                 continue
