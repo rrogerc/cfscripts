@@ -30,8 +30,6 @@ class NoRatingChangesError(Exception):
 
 def get_results(url, cache_type=0):
     while True:
-        printer.PRINT("fetching ... {}".format(url))
-
         try:
             res = None
             if cache_type == 0:
@@ -47,6 +45,8 @@ def get_results(url, cache_type=0):
             sleep(0.5)
             continue
 
+        from_cache = getattr(res, 'from_cache', False)
+
         try:
             content = json.loads(res.content)
         except json.decoder.JSONDecodeError:
@@ -55,10 +55,10 @@ def get_results(url, cache_type=0):
             sleep(0.5)
             continue
 
-        printer.PRINT("fetching {} {}".format(content["status"], url))
+        if not from_cache:
+            printer.PRINT("fetching {} {}".format(content["status"], url))
+            sleep(0.2)
 
-        from_cache = getattr(res, 'from_cache', False)
-        if printer.PRINT is not None and not from_cache: sleep(0.2)
         if content["status"] == "OK":
             return content["result"]
         elif content["comment"] == "contestId: Rating changes are unavailable for this contest":
