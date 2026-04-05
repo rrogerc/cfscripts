@@ -29,6 +29,13 @@ def get_standings(contest_id):
     results = get_results(url, 1)
     return results["rows"]
 
+def get_contest_and_standings(contest_id, cache_type=2):
+    url = "https://codeforces.com/api/contest.standings?contestId={}&from=1&count=1000000&showUnofficial=true".format(
+        quote_plus(str(contest_id))
+    )
+    results = get_results(url, cache_type)
+    return results["contest"], results["rows"]
+
 def get_contest_problems(contest_id):
     url = "https://codeforces.com/api/contest.standings?contestId={}&from=1&count=1000000&showUnofficial=true".format(
         quote_plus(str(contest_id))

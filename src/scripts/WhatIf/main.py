@@ -15,7 +15,6 @@ from lib.performance import UserPerformanceCalculator
 from lib.colors import CFColors
 from lib.contests import get_contest_map, get_participated_contest_ids
 from lib import printer
-from lib.rating import RatingTracker
 
 def set_status(status):
     if GROUP is None: return
@@ -71,13 +70,11 @@ def main():
     GROUP = None
 
     handle = "Exonerate"
-    contest_ids = get_participated_contest_ids(handle)
+    contest_map = get_contest_map()
+    contest_ids = get_participated_contest_ids(handle, contest_map)
     only_positive = False
     calculator = UserPerformanceCalculator(handle)
-    tracker = RatingTracker(handle)
-    old_rating = tracker.get_rating_at_time(contest_ids[0][1])
-    contest_map = get_contest_map()
-    calculator = UserPerformanceCalculator(handle)
+    old_rating = calculator.rating_tracker.get_rating_at_time(contest_ids[0][1])
 
     TABLE = get_table(handle)
     GROUP = Group("loading...", TABLE)

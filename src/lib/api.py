@@ -51,7 +51,8 @@ def get_results(url, cache_type=0):
 
         printer.PRINT("fetching {} {}".format(content["status"], url))
 
-        if printer.PRINT is not None: sleep(0.2)
+        from_cache = getattr(res, 'from_cache', False)
+        if printer.PRINT is not None and not from_cache: sleep(0.2)
         if content["status"] == "OK":
             return content["result"]
         elif content["comment"] == "contestId: Rating changes are unavailable for this contest":

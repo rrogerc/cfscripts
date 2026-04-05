@@ -1,6 +1,6 @@
 from .rating import RatingTracker, get_rating_changes_for_contest, get_ratedlist
 from .api import NoRatingChangesError
-from .contests import get_standings, get_contest
+from .contests import get_contest_and_standings
 from .rating_calculator import CodeforcesRatingCalculator
 
 class UserPerformanceCalculator:
@@ -10,8 +10,7 @@ class UserPerformanceCalculator:
         self.rating_tracker = RatingTracker(self.handle)
 
     def get_performance(self, contest_id, current_rating=None):
-        contest = get_contest(contest_id)
-        standings = get_standings(contest_id)
+        contest, standings = get_contest_and_standings(contest_id)
         contestants = {}
         participation_type = None
         rank = None
