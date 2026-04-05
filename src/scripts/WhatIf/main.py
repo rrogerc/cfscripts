@@ -68,6 +68,8 @@ def displayed_rating(real_rating, n_contests):
     return real_rating - adj
 
 def main():
+    skip_virtual = "--no-virtual" in sys.argv
+
     handle = "Exonerate"
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)
@@ -89,6 +91,8 @@ def main():
             live.update(Text("Evaluating {}/{}: {} ...".format(i + 1, n_total, contest_map[contest_id]["name"])))
             data = calculator.get_performance(contest_id, real_rating)
             if data["points"] < 10:
+                continue
+            if skip_virtual and data["participation_type"] == "virtual":
                 continue
             new_real = real_rating
             if type(data["delta"]) != str:
