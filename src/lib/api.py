@@ -61,7 +61,19 @@ def get_results(url, cache_type=0):
 
         if content["status"] == "OK":
             return content["result"]
-        elif content["comment"] == "contestId: Rating changes are unavailable for this contest":
+
+        # Non-OK response served from cache is likely stale — delete and retry fresh
+        if from_cache:
+            try:
+                if cache_type == 1:
+                    _short_session.cache.delete(urls=[url])
+                else:
+                    _long_session.cache.delete(urls=[url])
+            except Exception:
+                pass
+            continue
+
+        if content.get("comment") == "contestId: Rating changes are unavailable for this contest":
             raise NoRatingChangesError(url)
         else:
             sleep(0.5)

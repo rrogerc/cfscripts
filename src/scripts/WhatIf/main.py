@@ -69,6 +69,7 @@ def displayed_rating(real_rating, n_contests):
 
 def main():
     skip_virtual = "--no-virtual" in sys.argv
+    skip_first = "--skip-first" in sys.argv
 
     handle = "Exonerate"
     contest_map = get_contest_map()
@@ -93,6 +94,9 @@ def main():
             if data["points"] < 10:
                 continue
             if skip_virtual and data["participation_type"] == "virtual":
+                continue
+            if skip_first and data["participation_type"] == "contestant" and n_rated == 0:
+                n_rated += 1
                 continue
             new_real = real_rating
             if type(data["delta"]) != str:
