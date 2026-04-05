@@ -76,6 +76,8 @@ def main():
         for i, (contest_id, time) in enumerate(contest_ids):
             live.update(Text("Evaluating {}/{}: {} ...".format(i + 1, n_total, contest_map[contest_id]["name"])))
             data = calculator.get_performance(contest_id, old_rating)
+            if data["points"] < 10:
+                continue
             new_rating = old_rating
             if type(data["delta"]) != str:
                 if (not only_positive) or data["delta"] > 0:
