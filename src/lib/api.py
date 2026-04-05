@@ -32,14 +32,20 @@ def get_results(url, cache_type=0):
     while True:
         printer.PRINT("fetching ... {}".format(url))
 
-        res = None
-        if cache_type == 0:
-            with requests_cache.disabled():
-                res = req.get(url)
-        elif cache_type == 1:
-            res = _short_session.get(url)
-        else:
-            res = _long_session.get(url)
+        try:
+            res = None
+            if cache_type == 0:
+                with requests_cache.disabled():
+                    res = req.get(url)
+            elif cache_type == 1:
+                res = _short_session.get(url)
+            else:
+                res = _long_session.get(url)
+        except (req.exceptions.ConnectionError, req.exceptions.ChunkedEncodingError, req.exceptions.Timeout):
+            sleep(0.5)
+            printer.PRINT("retrying")
+            sleep(0.5)
+            continue
 
         try:
             content = json.loads(res.content)
