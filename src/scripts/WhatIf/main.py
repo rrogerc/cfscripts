@@ -69,17 +69,17 @@ def displayed_rating(real_rating, n_contests):
 
 def main():
     skip_virtual = "--no-virtual" in sys.argv
-    skip_first = "--skip-first" in sys.argv
+    skip_unrated = "--skip-unrated" in sys.argv
 
     handle = "Exonerate"
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)
     only_positive = False
     calculator = UserPerformanceCalculator(handle)
+    rated_contest_ids = calculator.rating_tracker.rated_contest_ids
 
     real_rating = INITIAL_RATING
     n_rated = 0
-    first_skipped = False
 
     n_total = len(contest_ids)
     progress = Text("Prefetching contest data...")
@@ -96,8 +96,7 @@ def main():
                 continue
             if skip_virtual and data["participation_type"] == "virtual":
                 continue
-            if skip_first and not first_skipped and data["participation_type"] == "contestant":
-                first_skipped = True
+            if skip_unrated and data["participation_type"] == "contestant" and contest_id not in rated_contest_ids:
                 continue
             new_real = real_rating
             if type(data["delta"]) != str:

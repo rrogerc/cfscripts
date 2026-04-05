@@ -11,6 +11,7 @@ class RatingTracker:
             for rt in rating_changes
         ]
         self.ratings.sort()
+        self.rated_contest_ids = {int(rt["contestId"]) for rt in rating_changes}
 
     def get_rating_at_time(self, sec):
         if len(self.ratings) == 0: return 1500
