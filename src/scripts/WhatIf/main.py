@@ -72,17 +72,7 @@ def main():
 
     handle = "Exonerate"
     contest_ids = get_participated_contest_ids(handle)
-    amount = IntPrompt.ask(
-        "Amount of contests to go back (at most {})".format(len(contest_ids)),
-        default=5,
-        choices=list(map(str, range(1,len(contest_ids) + 1))),
-        show_choices=False
-    )
-    only_positive = Confirm.ask(
-        "Only include positive rating changes",
-        default=False,
-    )
-    contest_ids = (contest_ids[-amount::])
+    only_positive = False
     calculator = UserPerformanceCalculator(handle)
     tracker = RatingTracker(handle)
     old_rating = tracker.get_rating_at_time(contest_ids[0][1])

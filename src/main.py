@@ -83,34 +83,7 @@ script_configs = [
 
 def main():
 
-    print("Welcome to cfscripts - a collection of scripts for CodeForces")
-    print("- created and maintained by", me)
-    print()
-
-    print("Choose a script")
-    for i in range(len(script_configs)):
-        print("{}: {}".format(i + 1, script_configs[i][0]))
-    choice = int(input("Script number (1-{}): ".format(len(script_configs))))
-    assert(1 <= choice <= len(script_configs))
-    choice -= 1
-
-    def print_script_info(script):
-        firstline="============={}=============".format(script[0])
-        print(firstline)
-        print(*wrap(dedent(script[2]).strip(), 80), sep="\n")
-        print("--------------")
-        print(*wrap(dedent(script[3]).strip(), 80), sep="\n")
-        print("=" * len(firstline))
-
-    print()
-    print_script_info(script_configs[choice])
-    print()
-
-    program = script_configs[choice][1]
-    if type(program) == str:
-        system(program)
-    else:
-        program()
+    whatif()
 
 if __name__ == "__main__":
     try:
