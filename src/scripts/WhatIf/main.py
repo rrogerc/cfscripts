@@ -1,10 +1,7 @@
-import datetime
 from rich.table import Table
-from rich.console import Group
+from rich.console import Console
 from rich.live import Live
 from rich.text import Text
-from rich.prompt import IntPrompt, Prompt, Confirm
-from rich import print
 from datetime import datetime
 import sys
 import os
@@ -16,12 +13,8 @@ from lib.colors import CFColors
 from lib.contests import get_contest_map, get_participated_contest_ids
 from lib import printer
 
-def set_status(status):
-    if GROUP is None: return
-    GROUP._renderables = [status, TABLE]
-    GROUP._render = None
-
-printer.PRINT=set_status
+# Suppress API status messages — progress is shown via Live display
+printer.PRINT = lambda *args, **kwargs: None
 
 def get_table(handle):
     table=Table(
@@ -43,14 +36,14 @@ def get_table(handle):
     table.add_column("performance")
     return table
 
-def add_row(data):
+def add_row(table, data):
     performance_color = CFColors.get_rating_color(data["performance"])
     old_rating_color = CFColors.get_rating_color(data["old_rating"])
     new_rating_color = CFColors.get_rating_color(data["new_rating"])
     delta_color = CFColors.get_delta_color(data["delta"])
     participation_type_color = CFColors.get_participation_type_color(data["participation_type"])
     timestamp = datetime.utcfromtimestamp(data["time"]).strftime('%Y-%m-%d %H:%M:%S')
-    TABLE.add_row(
+    table.add_row(
         data["handle"],
         data["contest"],
         str(data['contest_id']),
@@ -65,25 +58,23 @@ def add_row(data):
     )
 
 def main():
-    global GROUP, TABLE
-
-    GROUP = None
-
     handle = "Exonerate"
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)
     only_positive = False
     calculator = UserPerformanceCalculator(handle)
     old_rating = calculator.rating_tracker.get_rating_at_time(contest_ids[0][1])
-    calculator.prefetch([cid for cid, _ in contest_ids])
 
-    TABLE = get_table(handle)
-    GROUP = Group("loading...", TABLE)
+    n_total = len(contest_ids)
+    progress = Text("Prefetching contest data...")
 
-    with Live(GROUP, refresh_per_second=10, screen=False, transient=False, vertical_overflow="visible"):
+    with Live(progress, refresh_per_second=4, transient=True) as live:
+        calculator.prefetch([cid for cid, _ in contest_ids])
 
-        for contest_id, time in contest_ids:
-            set_status("evaluating {} -- {} ...".format(contest_map[contest_id]["name"], contest_id))
+        table = get_table(handle)
+
+        for i, (contest_id, time) in enumerate(contest_ids):
+            live.update(Text("Evaluating {}/{}: {} ...".format(i + 1, n_total, contest_map[contest_id]["name"])))
             data = calculator.get_performance(contest_id, old_rating)
             new_rating = old_rating
             if type(data["delta"]) != str:
@@ -93,9 +84,10 @@ def main():
             data["new_rating"] = new_rating
             data["time"] = time
             data["contest"] = contest_map[contest_id]["name"]
-            add_row(data)
+            add_row(table, data)
             old_rating = new_rating
-        set_status("finished")
+
+    Console().print(table)
 
 if __name__ == "__main__":
     try:
