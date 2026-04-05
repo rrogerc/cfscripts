@@ -79,6 +79,7 @@ def main():
 
     real_rating = INITIAL_RATING
     n_rated = 0
+    first_skipped = False
 
     n_total = len(contest_ids)
     progress = Text("Prefetching contest data...")
@@ -95,7 +96,8 @@ def main():
                 continue
             if skip_virtual and data["participation_type"] == "virtual":
                 continue
-            if skip_first and data["participation_type"] == "contestant" and n_rated == 0:
+            if skip_first and not first_skipped and data["participation_type"] == "contestant":
+                first_skipped = True
                 continue
             new_real = real_rating
             if type(data["delta"]) != str:
