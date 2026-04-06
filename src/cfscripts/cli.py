@@ -64,6 +64,11 @@ def main():
     p_stats = subparsers.add_parser("stats",
         help="Solved problem stats by rating (bar chart)")
 
+    p_config = subparsers.add_parser("config",
+        help="Get or set config values (stored in ~/.config/cfscripts/)")
+    p_config.add_argument("key", help="Config key (handle, cpp_dir)")
+    p_config.add_argument("value", nargs="?", help="Value to set (omit to read)")
+
     p_atcpick = subparsers.add_parser("atcpick",
         help="Pick an unsolved AtCoder ABC problem")
     p_atcpick.add_argument("index",
@@ -76,6 +81,10 @@ def main():
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    if args.command == "config":
+        _run_config(args)
+        return
 
     from cfscripts.config import load_config
     config = load_config(cli_handle=args.handle)
@@ -104,6 +113,19 @@ def main():
             print("Error: {}".format(e), file=sys.stderr)
             sys.exit(1)
         raise
+
+
+def _run_config(args):
+    from cfscripts.config import set_config, get_config_value
+    if args.value is not None:
+        set_config(args.key, args.value)
+        print(f"{args.key} = {args.value}")
+    else:
+        value = get_config_value(args.key)
+        if value is not None:
+            print(value)
+        else:
+            print(f"{args.key} is not set")
 
 
 def _run_whatif(args, config):

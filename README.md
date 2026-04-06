@@ -39,13 +39,11 @@ cfscripts --help
 
 ## Configuration
 
-Create a `.cfscripts.json` file in your project directory (or any parent directory):
+Set your Codeforces handle (stored in `~/.config/cfscripts/config.json`):
 
-```json
-{
-    "handle": "YourCodeforcesHandle",
-    "cpp_dir": "~/competitive/Codeforces"
-}
+```bash
+cfscripts config handle YourCodeforcesHandle
+cfscripts config cpp_dir ~/competitive/Codeforces
 ```
 
 - `handle` (required): Your Codeforces username.
@@ -65,7 +63,7 @@ The handle can also be overridden per-invocation with `--handle`.
 ```
 src/cfscripts/
     cli.py              # CLI entry point (argparse)
-    config.py           # .cfscripts.json loader
+    config.py           # Config loader (~/.config/cfscripts/)
     lib/                # Codeforces/AtCoder API clients, rating calculator
     scripts/            # Individual command implementations
 devtools/               # PyInstaller build scripts

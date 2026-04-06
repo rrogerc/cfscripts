@@ -3,36 +3,32 @@ import os
 from pathlib import Path
 
 
-_CONFIG_FILENAME = ".cfscripts.json"
-
-_DEFAULTS = {
-    "handle": None,
-    "cpp_dir": None,
-}
+_CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "cfscripts"
+_CONFIG_PATH = _CONFIG_DIR / "config.json"
 
 
-def _find_config_file():
-    """Walk up from CWD looking for .cfscripts.json."""
-    current = Path.cwd()
-    for parent in [current, *current.parents]:
-        candidate = parent / _CONFIG_FILENAME
-        if candidate.is_file():
-            return candidate
-    return None
+def _load():
+    if _CONFIG_PATH.is_file():
+        with open(_CONFIG_PATH) as f:
+            return json.load(f)
+    return {}
+
+
+def set_config(key, value):
+    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config = _load()
+    config[key] = value
+    with open(_CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+        f.write("\n")
+
+
+def get_config_value(key):
+    return _load().get(key)
 
 
 def load_config(cli_handle=None):
-    """Load config from .cfscripts.json, with CLI overrides.
-
-    Returns dict with keys: handle, cpp_dir.
-    """
-    config = dict(_DEFAULTS)
-
-    config_path = _find_config_file()
-    if config_path is not None:
-        with open(config_path) as f:
-            file_config = json.load(f)
-        config.update(file_config)
+    config = _load()
 
     if cli_handle is not None:
         config["handle"] = cli_handle
@@ -40,8 +36,16 @@ def load_config(cli_handle=None):
     if config.get("cpp_dir"):
         config["cpp_dir"] = os.path.expanduser(config["cpp_dir"])
 
+    missing = []
     if not config.get("handle"):
-        print("Error: No handle configured. Set 'handle' in .cfscripts.json or use --handle.")
-        raise SystemExit(1)
+        missing.append("  cfscripts config handle <your_codeforces_handle>")
+    if not config.get("cpp_dir"):
+        missing.append("  cfscripts config cpp_dir <path>              (optional, for pick)")
+    if missing:
+        print("Error: Missing config. Run:")
+        for line in missing:
+            print(line)
+        if not config.get("handle"):
+            raise SystemExit(1)
 
     return config
