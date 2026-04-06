@@ -7,6 +7,3 @@ def set_printer(fn):
     global _printer
     _printer = fn
 
-def reset_printer():
-    global _printer
-    _printer = print

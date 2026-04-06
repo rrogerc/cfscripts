@@ -48,6 +48,10 @@ def get_div2_contest_ids():
 
 def get_contest_number(contest_name):
     res = re.findall(r'#(\d+)', contest_name)
-    if len(res) == 0: return None
     if len(res) != 1: return None
     return int(res[0])
+
+def get_problems():
+    url="https://codeforces.com/api/problemset.problems"
+    result = get_results(url, CACHE_LONG)
+    return result["problems"]

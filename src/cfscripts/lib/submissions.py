@@ -43,14 +43,3 @@ def get_solved_problems_by_day(handle):
         days[day_ts].append(problem)
     return days
 
-def get_submissions_for_contest(contest_id, handle=None):
-    if handle is None:
-        url = "https://codeforces.com/api/contest.status?contestId={}".format(
-            quote_plus(str(contest_id)),
-        )
-    else:
-        url = "https://codeforces.com/api/contest.status?contestId={}&handle={}".format(
-            quote_plus(str(contest_id)),
-            quote_plus(str(handle))
-        )
-    return get_results(url, CACHE_SHORT)

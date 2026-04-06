@@ -3,8 +3,7 @@ from rich.table import Table
 from rich.console import Console
 
 from cfscripts.lib.submissions import get_submissions, get_solved_set
-from cfscripts.lib.contests import get_contest_map, get_contest_number
-from cfscripts.lib.problems import get_problems
+from cfscripts.lib.contests import get_contest_map, get_contest_number, get_problems
 
 
 def run(handle, min_rating=None, max_rating=None):

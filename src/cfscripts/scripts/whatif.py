@@ -67,7 +67,6 @@ def run(handle, skip_virtual=False):
 
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)
-    only_positive = False
     calculator = UserPerformanceCalculator(handle)
 
     real_rating = INITIAL_RATING
@@ -91,9 +90,8 @@ def run(handle, skip_virtual=False):
             if data["participation_type"] == "contestant" and not data.get("user_was_rated", True):
                 continue
             new_real = real_rating
-            if type(data["delta"]) != str:
-                if (not only_positive) or data["delta"] > 0:
-                    new_real = real_rating + data["delta"]
+            if not isinstance(data["delta"], str):
+                new_real = real_rating + data["delta"]
             disp_old = displayed_rating(real_rating, n_rated)
             n_rated += 1
             disp_new = displayed_rating(new_real, n_rated)

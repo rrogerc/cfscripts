@@ -3,9 +3,8 @@ import webbrowser
 from collections import OrderedDict
 from pathlib import Path
 
-from cfscripts.lib.problems import get_problems
-from cfscripts.lib.contests import get_div2_contest_ids
-from cfscripts.lib.submissions import get_submissions, get_solved_set
+from cfscripts.lib.contests import get_div2_contest_ids, get_problems
+from cfscripts.lib.submissions import get_solved_set
 
 
 CPP_STARTER = r"""#include <iostream>
@@ -71,6 +70,30 @@ def _display_path(p):
     return str(p)
 
 
+def _present_problem(best, cpp_dir=None, open_editor=True, open_browser=True):
+    """Display the chosen problem, optionally create a C++ stub and open tools."""
+    url = "https://codeforces.com/problemset/problem/{}/{}".format(
+        best["contestId"], best["index"]
+    )
+
+    print("Problem:   {} ({} {})".format(best["name"], best["contestId"], best["index"]))
+    print("Rating:    {}".format(best["rating"]))
+
+    if cpp_dir:
+        path, created = _create_cpp_stub(best, cpp_dir)
+        status = "Created" if created else "Exists"
+        print("File:      {} ({})".format(_display_path(path), status))
+
+        if open_browser:
+            webbrowser.open(url)
+
+        if open_editor:
+            os.execvp("nvim", ["nvim", str(path)])
+    else:
+        if open_browser:
+            webbrowser.open(url)
+
+
 def run_level(handle, level, cpp_dir=None, open_editor=True, open_browser=True):
     """Pick the latest unsolved Div. 2 problem at the given rating level."""
     if level < 8 or level > 32:
@@ -98,26 +121,7 @@ def run_level(handle, level, cpp_dir=None, open_editor=True, open_browser=True):
         print("No problem with rating {} found (Level {}).".format(target_rating, level))
         return
 
-    url = "https://codeforces.com/problemset/problem/{}/{}".format(
-        best["contestId"], best["index"]
-    )
-
-    print("Problem:   {} ({} {})".format(best["name"], best["contestId"], best["index"]))
-    print("Rating:    {}".format(best["rating"]))
-
-    if cpp_dir:
-        path, created = _create_cpp_stub(best, cpp_dir)
-        status = "Created" if created else "Exists"
-        print("File:      {} ({})".format(_display_path(path), status))
-
-        if open_browser:
-            webbrowser.open(url)
-
-        if open_editor:
-            os.execvp("nvim", ["nvim", str(path)])
-    else:
-        if open_browser:
-            webbrowser.open(url)
+    _present_problem(best, cpp_dir, open_editor, open_browser)
 
 
 def run_index(handle, index_letter, cpp_dir=None, open_editor=True, open_browser=True):
@@ -148,26 +152,7 @@ def run_index(handle, index_letter, cpp_dir=None, open_editor=True, open_browser
         print("No unsolved Codeforces Div. 2 '{}' problem found.".format(letter))
         return
 
-    url = "https://codeforces.com/problemset/problem/{}/{}".format(
-        best["contestId"], best["index"]
-    )
-
-    print("Problem:   {} ({} {})".format(best["name"], best["contestId"], best["index"]))
-    print("Rating:    {}".format(best["rating"]))
-
-    if cpp_dir:
-        path, created = _create_cpp_stub(best, cpp_dir)
-        status = "Created" if created else "Exists"
-        print("File:      {} ({})".format(_display_path(path), status))
-
-        if open_browser:
-            webbrowser.open(url)
-
-        if open_editor:
-            os.execvp("nvim", ["nvim", str(path)])
-    else:
-        if open_browser:
-            webbrowser.open(url)
+    _present_problem(best, cpp_dir, open_editor, open_browser)
 
 
 def run_distribution():

@@ -35,17 +35,6 @@ class CodeforcesRatingCalculator:
         self._process()
         self._update_delta()
 
-    def calculate_rating_changes(self):
-        """Return a mapping between contestants and their corresponding delta."""
-        return {contestant.party: contestant.delta for contestant in self.contestants}
-
-    def get_seed(self, rating, me=None):
-        """Get seed given a rating and user."""
-        seed = self.seed[rating]
-        if me:
-            seed -= self.elo_win_prob[rating - me.rating]
-        return seed
-
     def _precalc_seed(self):
         MAX = 6144
 
