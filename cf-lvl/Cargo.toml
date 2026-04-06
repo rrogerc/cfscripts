@@ -1,9 +1,0 @@
-[package]
-name = "cf-lvl"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-reqwest = { version = "0.12", features = ["json", "blocking", "gzip"] }
-serde = { version = "1.0.213", features = ["derive"] }
-webbrowser = "1.0.2"

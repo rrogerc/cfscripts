@@ -1,14 +1,11 @@
-from requests import get as req_get
-from json import loads
 from datetime import datetime
-from sys import exit
 
-def main():
-    handle = input("CodeForces handle: ")
-    url = "https://codeforces.com/api/user.status?handle={}".format(handle)
-    response = req_get(url)
-    subs = loads(response.content)["result"][::-1]
-    problems = {} 
+from cfscripts.lib.submissions import get_submissions
+
+
+def run(handle):
+    subs = get_submissions(handle)[::-1]
+    problems = {}
     for sub in subs:
         problem = ""
         if "contestId" not in sub["problem"]: problem = sub["problem"]["name"]
@@ -31,15 +28,7 @@ def main():
         comu.append(len(probs))
         daynames.append(date)
     for i in range(len(comu)-2,-1,-1):
-        comu[i] += comu[i+1] 
-    print("\nProblem solutions comulative count\n")
+        comu[i] += comu[i+1]
+    print("\nProblem solutions cumulative count\n")
     for i in range(len(comu)):
         print("Since", daynames[i].strftime('%b/%d/%Y'), comu[i], "problems were solved")
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print()
-        exit(1)
-    exit(0)

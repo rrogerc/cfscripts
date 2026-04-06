@@ -6,3 +6,7 @@ _dist_windows/*
 _specs_windows/*
 bin/*
 requirements.txt
+*.egg-info/
+__pycache__/
+dist/
+build/

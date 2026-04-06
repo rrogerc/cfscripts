@@ -1,19 +1,24 @@
-import sys
-import os
-
-from rich.pretty import pprint
 from urllib.parse import quote_plus
 from rich.table import Table
 from rich.console import Console
-from rich.prompt import IntPrompt, Prompt, Confirm
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../..")
+from cfscripts.lib.submissions import get_submissions
+from cfscripts.lib.contests import get_contest_map, get_contest_number
+from cfscripts.lib.problems import get_problems
 
-from lib.submissions import get_submissions, get_submissions_for_contest
-from lib.contests import get_contest_map, get_contest_number
-from lib.problems import get_problems
 
-# printer.PRINT=set_status
+def run(handle, min_rating=None, max_rating=None):
+    problems = get_unsolved_problems_from_participated_contests(handle)
+    if min_rating is not None and max_rating is not None:
+        problems = filter_by_rating(problems, min_rating, max_rating)
+
+    contest_mp = get_contest_map()
+    table = get_table()
+    for problem in problems:
+        add_row(table, problem, contest_mp)
+
+    Console().print(table)
+
 
 def get_table():
     table=Table(
@@ -61,7 +66,6 @@ def get_unsolved_problems_from_participated_contests(handle):
     solved_problems = set()
     for submission in submissions:
         is_ac = submission["verdict"] == "OK"
-        # handle div1 and div2 having the same problems but different ids
         if "contestId" not in submission: continue
         cid = submission["contestId"]
         if is_ac:
@@ -97,7 +101,7 @@ def get_unsolved_problems_from_participated_contests(handle):
                 is_problem_ok = True
         if is_problem_ok:
             problems.append(problem)
-    problems = problems[::-1] # reverse
+    problems = problems[::-1]
     return problems
 
 def filter_by_rating(problems, rmin, rmax):
@@ -105,46 +109,4 @@ def filter_by_rating(problems, rmin, rmax):
         rating = None
         if "rating" in problem: rating = problem["rating"]
         return rating is not None and rmin <= rating <= rmax
-    return filter(filter_problem, problems)
-
-def main():
-    handle = Prompt.ask("CodeForces handle")
-
-    should_filter_by_rating = Confirm.ask(
-        "Filter by rating",
-        default=False,
-    )
-    rmin = None
-    rmax = None
-    if should_filter_by_rating:
-        rmin = IntPrompt.ask(
-            "Minimum rating",
-            choices=list(map(str, range(0,10000))),
-            show_choices=False
-        ) 
-        rmax = IntPrompt.ask(
-            "Maximum rating",
-            choices=list(map(str, range(rmin,10000))),
-            show_choices=False
-        ) 
-
-    problems = get_unsolved_problems_from_participated_contests(handle)
-    if should_filter_by_rating:
-        problems = filter_by_rating(problems, rmin, rmax)
-
-    contest_mp = get_contest_map()
-    table = get_table()
-    for problem in problems:
-        add_row(table, problem, contest_mp)
-
-    console = Console()
-    console.print(table)
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print()
-        sys.exit(1)
-    sys.exit(0)
+    return list(filter(filter_problem, problems))

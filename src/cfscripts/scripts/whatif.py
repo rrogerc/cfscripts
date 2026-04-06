@@ -3,18 +3,12 @@ from rich.console import Console
 from rich.live import Live
 from rich.text import Text
 from datetime import datetime
-import sys
-import os
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../..")
+from cfscripts.lib.performance import UserPerformanceCalculator
+from cfscripts.lib.colors import CFColors
+from cfscripts.lib.contests import get_contest_map, get_participated_contest_ids
+from cfscripts.lib import printer
 
-from lib.performance import UserPerformanceCalculator
-from lib.colors import CFColors
-from lib.contests import get_contest_map, get_participated_contest_ids
-from lib import printer
-
-# Suppress API status messages — progress is shown via Live display
-printer.PRINT = lambda *args, **kwargs: None
 
 def get_table(handle):
     table=Table(
@@ -67,10 +61,10 @@ def displayed_rating(real_rating, n_contests):
     adj = RATING_ADJUSTMENT[min(n_contests, len(RATING_ADJUSTMENT) - 1)]
     return real_rating - adj
 
-def main():
-    skip_virtual = "--no-virtual" in sys.argv
+def run(handle, skip_virtual=False):
+    # Suppress API status messages — progress is shown via Live display
+    printer.PRINT = lambda *args, **kwargs: None
 
-    handle = "Exonerate"
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)
     only_positive = False
@@ -112,11 +106,3 @@ def main():
             real_rating = new_real
 
     Console().print(table)
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print()
-        sys.exit(1)
-    sys.exit(0)

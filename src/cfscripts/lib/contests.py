@@ -59,6 +59,14 @@ def get_participated_contest_ids(handle, contest_map=None):
     l.sort(key=lambda t: t[1])
     return l
 
+def get_div2_contest_ids():
+    """Return set of contest IDs for Div. 2 only contests (not Div. 1 + Div. 2)."""
+    contests = get_contests()
+    return {
+        c["id"] for c in contests
+        if "Div. 2" in c["name"] and "Div. 1" not in c["name"]
+    }
+
 def get_contest_number(contest_name):
     res = re.findall(r'#(\d+)', contest_name)
     if len(res) == 0: return None
