@@ -101,6 +101,8 @@ class UserPerformanceCalculator:
                 if handle not in contestants: continue # some people are not in ranking but in rating change. Why is that?
                 handles_to_include.append(handle)
                 rating = rt["oldRating"]
+                if rating == 0 and contest_id >= 1360:
+                    rating = 1400  # post-2020: API returns displayed 0, internal is 1400
                 contestants[handle][3] = rating
             new_contestants = {}
             for handle in handles_to_include:

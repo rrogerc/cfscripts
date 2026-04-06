@@ -128,7 +128,7 @@ class CodeforcesRatingCalculator:
         for contestant in contestants:
             contestant.delta += correction
 
-        zero_sum_count = min(4 * round(n ** 0.5), n)
+        zero_sum_count = min(int(4 * n ** 0.5 + 0.5), n)  # Java Math.round semantics
         delta_sum = -sum(contestants[i].delta for i in range(zero_sum_count))
         correction = min(0, max(-10, intdiv(delta_sum, zero_sum_count)))
         for contestant in contestants:
