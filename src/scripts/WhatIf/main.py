@@ -76,7 +76,6 @@ def main():
     contest_ids = get_participated_contest_ids(handle, contest_map)
     only_positive = False
     calculator = UserPerformanceCalculator(handle)
-    rated_contest_ids = calculator.rating_tracker.rated_contest_ids
 
     real_rating = INITIAL_RATING
     n_rated = 0
@@ -96,7 +95,7 @@ def main():
                 continue
             if skip_virtual and data["participation_type"] == "virtual":
                 continue
-            if skip_unrated and data["participation_type"] == "contestant" and contest_id not in rated_contest_ids:
+            if skip_unrated and data["participation_type"] == "contestant" and not data.get("user_was_rated", True):
                 continue
             new_real = real_rating
             if type(data["delta"]) != str:

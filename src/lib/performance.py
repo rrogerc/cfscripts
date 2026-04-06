@@ -71,9 +71,11 @@ class UserPerformanceCalculator:
                 "performance" : "unknown",
                 "participation_type" : participation_type.lower(),
                 "result_status" : "unrated/old/unusual",
+                "user_was_rated" : False,
             }
 
         result_status = None
+        user_was_rated = False
         if len(rating_changes) == 0: # if a contest has just ended
             result_status = "just_ended"
             ratings = get_ratedlist() # we assume their current rating was used during the contest
@@ -92,6 +94,7 @@ class UserPerformanceCalculator:
             contestants = new_contestants
         else:
             result_status = "normal"
+            user_was_rated = any(rt["handle"] == self.handle for rt in rating_changes)
             handles_to_include = [self.handle]
             for rt in rating_changes:
                 handle = rt["handle"]
@@ -130,5 +133,6 @@ class UserPerformanceCalculator:
                     "performance" : con.rating + con.delta * 4,
                     "participation_type" : participation_type.lower(),
                     "result_status" : result_status,
+                    "user_was_rated" : user_was_rated,
                 }
         assert(False);
