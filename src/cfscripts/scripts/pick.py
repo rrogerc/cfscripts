@@ -5,7 +5,7 @@ from pathlib import Path
 
 from cfscripts.lib.problems import get_problems
 from cfscripts.lib.contests import get_div2_contest_ids
-from cfscripts.lib.submissions import get_submissions
+from cfscripts.lib.submissions import get_submissions, get_solved_set
 
 
 CPP_STARTER = r"""#include <iostream>
@@ -25,16 +25,6 @@ int main() {
 void solve() {
 }
 """.lstrip()
-
-
-def _get_solved_set(handle):
-    """Return set of (contest_id, index) pairs for all AC'd problems."""
-    subs = get_submissions(handle)
-    solved = set()
-    for s in subs:
-        if s.get("verdict") == "OK" and "contestId" in s.get("problem", {}):
-            solved.add((s["problem"]["contestId"], s["problem"]["index"]))
-    return solved
 
 
 def _get_rated_problems():
@@ -90,7 +80,7 @@ def run_level(handle, level, cpp_dir=None, open_editor=True, open_browser=True):
     target_rating = level * 100
     rated_problems = _get_rated_problems()
     div2_contests = get_div2_contest_ids()
-    solved = _get_solved_set(handle)
+    solved = get_solved_set(handle)
 
     best = None
     for p in rated_problems:
@@ -139,7 +129,7 @@ def run_index(handle, index_letter, cpp_dir=None, open_editor=True, open_browser
 
     rated_problems = _get_rated_problems()
     div2_contests = get_div2_contest_ids()
-    solved = _get_solved_set(handle)
+    solved = get_solved_set(handle)
 
     best = None
     for p in rated_problems:
@@ -207,25 +197,17 @@ def run_distribution():
 def run_stats(handle):
     """Print bar chart of solved Div. 2 problems by rating."""
     div2_contests = get_div2_contest_ids()
-    subs = get_submissions(handle)
+    solved = get_solved_set(handle)
+    rated_problems = _get_rated_problems()
 
-    # Collect solved rated problems in Div. 2
-    seen = set()
     stats = {}
-    for s in subs:
-        if s.get("verdict") != "OK":
-            continue
-        prob = s.get("problem", {})
-        cid = prob.get("contestId")
+    for p in rated_problems:
+        cid = p.get("contestId")
         if cid not in div2_contests:
             continue
-        rating = prob.get("rating")
-        if rating is None:
+        if (cid, p["index"]) not in solved:
             continue
-        key = (cid, prob.get("index"))
-        if key in seen:
-            continue
-        seen.add(key)
+        rating = p["rating"]
         stats[rating] = stats.get(rating, 0) + 1
 
     if not stats:

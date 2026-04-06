@@ -15,13 +15,3 @@ numpy = "*"
 [requires]
 python_version = "3.10"
 
-[scripts]
-build = "./devtools/build.sh"
-build_windows = "./devtools/build_windows.sh"
-cfscripts = "python ./src/main.py"
-comuaccount = "python ./src/scripts/ComuACCount/main.py"
-dailyacs = "python ./src/scripts/DailyACs/main.py"
-rangerank = "python ./src/scripts/RangeRank/main.py"
-unsolvedcontestproblems = "python ./src/scripts/UnsolvedContestProblems/main.py"
-virtualperformance = "python ./src/scripts/VirtualPerformance/main.py"
-whatif = "python ./src/scripts/WhatIf/main.py"

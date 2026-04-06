@@ -98,6 +98,12 @@ def main():
     except KeyboardInterrupt:
         print()
         sys.exit(1)
+    except Exception as e:
+        from cfscripts.lib.api import ApiError
+        if isinstance(e, ApiError):
+            print("Error: {}".format(e), file=sys.stderr)
+            sys.exit(1)
+        raise
 
 
 def _run_whatif(args, config):

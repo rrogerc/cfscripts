@@ -107,17 +107,6 @@ class CodeforcesRatingCalculator:
             a.need_rating = int(need_ratings[i])
             a.delta = int(deltas[i])
 
-    def _rank_to_rating(self, rank, me):
-        """Binary Search to find the performance rating for a given rank."""
-        left, right = 1, 8000
-        while right - left > 1:
-            mid = (left + right) // 2
-            if self.get_seed(mid, me) < rank:
-                right = mid
-            else:
-                left = mid
-        return left
-
     def _update_delta(self):
         """Update the delta of each contestant."""
         contestants = self.contestants

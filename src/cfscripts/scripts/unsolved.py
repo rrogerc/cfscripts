@@ -2,7 +2,7 @@ from urllib.parse import quote_plus
 from rich.table import Table
 from rich.console import Console
 
-from cfscripts.lib.submissions import get_submissions
+from cfscripts.lib.submissions import get_submissions, get_solved_set
 from cfscripts.lib.contests import get_contest_map, get_contest_number
 from cfscripts.lib.problems import get_problems
 
@@ -61,46 +61,31 @@ def add_row(table, data, contest_mp):
 
 def get_unsolved_problems_from_participated_contests(handle):
     submissions = get_submissions(handle)
-    used_contest_ids = set()
     contest_mp = get_contest_map()
-    solved_problems = set()
+    solved = get_solved_set(handle)
+
+    # Collect contest IDs the user participated in, plus sibling Div1/Div2 contests
+    used_contest_ids = set()
     for submission in submissions:
-        is_ac = submission["verdict"] == "OK"
         if "contestId" not in submission: continue
         cid = submission["contestId"]
-        if is_ac:
-            full_problem_name = str(cid) + submission["problem"]["name"]
-            solved_problems.add(full_problem_name)
         used_contest_ids.add(cid)
         if cid not in contest_mp: continue
         cnum = get_contest_number(contest_mp[cid]["name"])
-        if cid - 1 in contest_mp:
-            num = get_contest_number(contest_mp[cid - 1]["name"])
-            if num is not None and cnum == num:
-                used_contest_ids.add(cid - 1)
-                if is_ac:
-                    full_problem_name = str(cid - 1) + submission["problem"]["name"]
-                    solved_problems.add(full_problem_name)
-        if cid + 1 in contest_mp:
-            num = get_contest_number(contest_mp[cid + 1]["name"])
-            if num is not None and cnum == num:
-                used_contest_ids.add(cid + 1)
-                if is_ac:
-                    full_problem_name = str(cid + 1) + submission["problem"]["name"]
-                    solved_problems.add(full_problem_name)
+        for sibling in (cid - 1, cid + 1):
+            if sibling in contest_mp:
+                num = get_contest_number(contest_mp[sibling]["name"])
+                if num is not None and cnum == num:
+                    used_contest_ids.add(sibling)
+
     all_problems = get_problems()
     problems = []
     for problem in all_problems:
-        is_problem_ok = False
         if "contestId" not in problem:
-            is_problem_ok = True
-        else:
-            cid = problem["contestId"]
-            full_problem_name = str(cid) + problem["name"]
-            if cid in used_contest_ids and full_problem_name not in solved_problems:
-                is_problem_ok = True
-        if is_problem_ok:
             problems.append(problem)
+        elif problem["contestId"] in used_contest_ids:
+            if (problem["contestId"], problem["index"]) not in solved:
+                problems.append(problem)
     problems = problems[::-1]
     return problems
 

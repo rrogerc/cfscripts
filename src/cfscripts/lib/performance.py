@@ -1,9 +1,13 @@
+from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 
 from .rating import RatingTracker, get_rating_changes_for_contest, get_ratedlist
-from .api import NoRatingChangesError
+from .api import NoRatingChangesError, ApiError
 from .contests import get_contest_and_standings
 from .rating_calculator import CodeforcesRatingCalculator
+
+ContestantEntry = namedtuple("ContestantEntry", ["handle", "points", "penalty", "rating"])
+_UNSET = float("inf")
 
 class UserPerformanceCalculator:
 
@@ -28,44 +32,60 @@ class UserPerformanceCalculator:
             list(executor.map(fetch_one, contest_ids))
 
     def get_performance(self, contest_id, current_rating=None):
-        contest, standings = get_contest_and_standings(contest_id)
+        try:
+            contest, standings = get_contest_and_standings(contest_id)
+        except ApiError:
+            return {
+                "contest_id" : contest_id,
+                "contest_name" : "contest {}".format(contest_id),
+                "handle" : self.handle,
+                "points" : 0,
+                "penalty" : 0,
+                "rating" : 0,
+                "rank" : 0,
+                "delta" : "unknown",
+                "performance" : "unknown",
+                "participation_type" : "unknown",
+                "result_status" : "api_error",
+                "user_was_rated" : False,
+            }
         contestants = {}
         participation_type = None
         rank = None
         for stand in standings:
-            type = stand["party"]["participantType"]
-            if type == "PRACTICE": continue
-            members = stand["party"]["members"] 
+            part_type = stand["party"]["participantType"]
+            if part_type == "PRACTICE": continue
+            members = stand["party"]["members"]
             if len(members) == 1:
                 handle = members[0]["handle"]
                 points = stand["points"]
                 penalty = stand["penalty"]
-                if type == "CONTESTANT":
+                if part_type == "CONTESTANT":
                     if handle not in contestants:
-                        contestants[handle] = [handle, 1e100, 1e100, 1e100] # handle, points, penalty, rating
-                    contestants[handle][1] = points
-                    contestants[handle][2] = penalty
+                        contestants[handle] = ContestantEntry(handle, _UNSET, _UNSET, _UNSET)
+                    contestants[handle] = contestants[handle]._replace(points=points, penalty=penalty)
                 if handle == self.handle:
                     start_time = int(stand["party"]["startTimeSeconds"])
                     rating = self.rating_tracker.get_rating_at_time(start_time)
-                    contestants[handle] = [handle, points, penalty, rating]
-                    participation_type = type
+                    contestants[handle] = ContestantEntry(handle, points, penalty, rating)
+                    participation_type = part_type
                     rank = stand["rank"]
 
-        if current_rating is not None: contestants[self.handle][3] = current_rating
+        if current_rating is not None:
+            contestants[self.handle] = contestants[self.handle]._replace(rating=current_rating)
 
         rating_changes = None
         try:
-            rating_changes = get_rating_changes_for_contest(contest_id) # this fails for old/unusual contests
+            rating_changes = get_rating_changes_for_contest(contest_id)
         except NoRatingChangesError:
-            # unrated or old contest
+            me = contestants[self.handle]
             return {
                 "contest_id" : contest_id,
                 "contest_name" : contest["name"],
                 "handle" : self.handle,
-                "points" : int(contestants[self.handle][1]),
-                "penalty" : int(contestants[self.handle][2]),
-                "rating" : int(contestants[self.handle][3]),
+                "points" : int(me.points),
+                "penalty" : int(me.penalty),
+                "rating" : int(me.rating),
                 "rank" : int(rank),
                 "delta" : "unknown",
                 "performance" : "unknown",
@@ -76,47 +96,38 @@ class UserPerformanceCalculator:
 
         result_status = None
         user_was_rated = False
-        if len(rating_changes) == 0: # if a contest has just ended
+        if len(rating_changes) == 0:
             result_status = "just_ended"
-            ratings = get_ratedlist() # we assume their current rating was used during the contest
+            ratings = get_ratedlist()
             for user in ratings:
                 handle = user["handle"]
                 if handle in contestants:
-                    contestants[handle][3] = user["rating"]
-            # then remove people who participated for the first time
-            handles_to_include = [self.handle]
-            for handle in contestants:
-                if contestants[handle][3] != 1e100:
-                    handles_to_include.append(handle)
-            new_contestants = {}
-            for handle in handles_to_include:
-                new_contestants[handle] = contestants[handle]
-            contestants = new_contestants
+                    contestants[handle] = contestants[handle]._replace(rating=user["rating"])
+            contestants = {h: c for h, c in contestants.items()
+                          if h == self.handle or c.rating != _UNSET}
         else:
             result_status = "normal"
             user_was_rated = any(rt["handle"] == self.handle for rt in rating_changes)
-            handles_to_include = [self.handle]
+            rated_handles = {self.handle}
             for rt in rating_changes:
                 handle = rt["handle"]
-                if handle not in contestants: continue # some people are not in ranking but in rating change. Why is that?
-                handles_to_include.append(handle)
+                if handle not in contestants: continue
+                rated_handles.add(handle)
                 rating = rt["oldRating"]
                 if rating == 0 and contest_id >= 1360:
-                    rating = 1400  # post-2020: API returns displayed 0, internal is 1400
-                contestants[handle][3] = rating
-            new_contestants = {}
-            for handle in handles_to_include:
-                new_contestants[handle] = contestants[handle]
-            contestants = new_contestants
+                    rating = 1400
+                contestants[handle] = contestants[handle]._replace(rating=rating)
+            contestants = {h: c for h, c in contestants.items() if h in rated_handles}
 
-        if current_rating is not None: contestants[self.handle][3] = current_rating
+        if current_rating is not None:
+            contestants[self.handle] = contestants[self.handle]._replace(rating=current_rating)
 
-        assert(self.handle in contestants)
-        for handle in contestants:
-            assert(contestants[handle][0] == handle)
-            assert(contestants[handle][1] != 1e100)
-            assert(contestants[handle][2] != 1e100)
-            assert(contestants[handle][3] != 1e100)
+        assert self.handle in contestants
+        for handle, entry in contestants.items():
+            assert entry.handle == handle
+            assert entry.points != _UNSET
+            assert entry.penalty != _UNSET
+            assert entry.rating != _UNSET
 
         calculator = CodeforcesRatingCalculator(contestants.values())
         rated_contestants = calculator.contestants
@@ -137,4 +148,4 @@ class UserPerformanceCalculator:
                     "result_status" : result_status,
                     "user_was_rated" : user_was_rated,
                 }
-        assert(False);
+        raise AssertionError("handle not found in rated contestants")

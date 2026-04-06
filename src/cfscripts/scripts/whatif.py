@@ -5,7 +5,7 @@ from rich.text import Text
 from datetime import datetime
 
 from cfscripts.lib.performance import UserPerformanceCalculator
-from cfscripts.lib.colors import CFColors
+from cfscripts.lib.colors import get_rating_color, get_delta_color, get_participation_type_color
 from cfscripts.lib.contests import get_contest_map, get_participated_contest_ids
 from cfscripts.lib import printer
 
@@ -31,12 +31,12 @@ def get_table(handle):
     return table
 
 def add_row(table, data):
-    performance_color = CFColors.get_rating_color(data["performance"])
-    old_rating_color = CFColors.get_rating_color(data["old_rating"])
-    new_rating_color = CFColors.get_rating_color(data["new_rating"])
-    delta_color = CFColors.get_delta_color(data["delta"])
-    participation_type_color = CFColors.get_participation_type_color(data["participation_type"])
-    timestamp = datetime.utcfromtimestamp(data["time"]).strftime('%Y-%m-%d %H:%M:%S')
+    performance_color = get_rating_color(data["performance"])
+    old_rating_color = get_rating_color(data["old_rating"])
+    new_rating_color = get_rating_color(data["new_rating"])
+    delta_color = get_delta_color(data["delta"])
+    participation_type_color = get_participation_type_color(data["participation_type"])
+    timestamp = datetime.fromtimestamp(data["time"]).strftime('%Y-%m-%d %H:%M:%S')
     table.add_row(
         data["handle"],
         data["contest"],
@@ -63,7 +63,7 @@ def displayed_rating(real_rating, n_contests):
 
 def run(handle, skip_virtual=False):
     # Suppress API status messages — progress is shown via Live display
-    printer.PRINT = lambda *args, **kwargs: None
+    printer.set_printer(lambda *args, **kwargs: None)
 
     contest_map = get_contest_map()
     contest_ids = get_participated_contest_ids(handle, contest_map)

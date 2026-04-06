@@ -5,7 +5,7 @@ from rich.live import Live
 from rich.text import Text
 
 from cfscripts.lib.performance import UserPerformanceCalculator
-from cfscripts.lib.colors import CFColors
+from cfscripts.lib.colors import get_rating_color, get_delta_color, get_participation_type_color
 from cfscripts.lib.contests import get_contest_map, get_participated_contest_ids
 from cfscripts.lib import printer
 
@@ -50,7 +50,7 @@ def run(handle, contest_id=None, count=5):
         group._renderables = [status, table]
         group._render = None
 
-    printer.PRINT = set_status
+    printer.set_printer(set_status)
 
     calculator = UserPerformanceCalculator(handle)
 
@@ -59,11 +59,11 @@ def run(handle, contest_id=None, count=5):
             set_status("Calculating performance for {} -- {} ...".format(contest_map[cid]["name"], cid))
             data = calculator.get_performance(cid)
             data["time"] = time
-            performance_color = CFColors.get_rating_color(data["performance"])
-            rating_color = CFColors.get_rating_color(data["rating"])
-            delta_color = CFColors.get_delta_color(data["delta"])
-            participation_type_color = CFColors.get_participation_type_color(data["participation_type"])
-            timestamp = datetime.utcfromtimestamp(data["time"]).strftime('%Y-%m-%d %H:%M:%S')
+            performance_color = get_rating_color(data["performance"])
+            rating_color = get_rating_color(data["rating"])
+            delta_color = get_delta_color(data["delta"])
+            participation_type_color = get_participation_type_color(data["participation_type"])
+            timestamp = datetime.fromtimestamp(data["time"]).strftime('%Y-%m-%d %H:%M:%S')
             table.add_row(
                 Text(data["handle"], style=rating_color),
                 data["contest_name"],
