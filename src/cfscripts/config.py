@@ -34,18 +34,11 @@ def load_config(cli_handle=None):
         config["handle"] = cli_handle
 
     if config.get("cpp_dir"):
-        config["cpp_dir"] = os.path.expanduser(config["cpp_dir"])
+        config["cpp_dir"] = str(Path(os.path.expanduser(config["cpp_dir"])))
 
-    missing = []
     if not config.get("handle"):
-        missing.append("  cfscripts config handle <your_codeforces_handle>")
-    if not config.get("cpp_dir"):
-        missing.append("  cfscripts config cpp_dir <path>              (optional, for pick)")
-    if missing:
         print("Error: Missing config. Run:")
-        for line in missing:
-            print(line)
-        if not config.get("handle"):
-            raise SystemExit(1)
+        print("  cfscripts config handle <your_codeforces_handle>")
+        raise SystemExit(1)
 
     return config

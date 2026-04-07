@@ -1,4 +1,6 @@
 import os
+import shutil
+import subprocess
 import webbrowser
 from collections import OrderedDict
 from pathlib import Path
@@ -64,7 +66,7 @@ def _display_path(p):
         pass
     home = Path.home()
     try:
-        return "~/" + str(p.relative_to(home))
+        return "~" + os.sep + str(p.relative_to(home))
     except ValueError:
         pass
     return str(p)
@@ -88,7 +90,16 @@ def _present_problem(best, cpp_dir=None, open_editor=True, open_browser=True):
             webbrowser.open(url)
 
         if open_editor:
-            os.execvp("nvim", ["nvim", str(path)])
+            editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+            if not editor:
+                for candidate in ("nvim", "vim", "vi", "code", "nano", "notepad"):
+                    if shutil.which(candidate):
+                        editor = candidate
+                        break
+            if editor:
+                subprocess.run([editor, str(path)])
+            else:
+                print("No editor found. Set EDITOR environment variable.")
     else:
         if open_browser:
             webbrowser.open(url)
