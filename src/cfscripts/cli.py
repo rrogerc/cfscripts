@@ -106,7 +106,10 @@ def main():
         print()
         sys.exit(1)
     except Exception as e:
-        from cfscripts.lib.api import ApiError
+        try:
+            from cfscripts.lib.api import ApiError
+        except ImportError:
+            raise e
         if isinstance(e, ApiError):
             print("Error: {}".format(e), file=sys.stderr)
             sys.exit(1)
