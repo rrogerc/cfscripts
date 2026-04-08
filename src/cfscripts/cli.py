@@ -7,8 +7,6 @@ def main():
         prog="cfscripts",
         description="Codeforces & AtCoder competitive programming tools",
     )
-    parser.add_argument("--handle", help="Override handle from config")
-
     subparsers = parser.add_subparsers(dest="command")
 
     # --- Existing scripts ---
@@ -79,11 +77,6 @@ def main():
     args = parser.parse_args()
 
     if args.command is None:
-        if args.handle:
-            from cfscripts.config import set_config
-            set_config("handle", args.handle)
-            print(f"handle = {args.handle}")
-            return
         parser.print_help()
         sys.exit(1)
 
@@ -92,7 +85,7 @@ def main():
         return
 
     from cfscripts.config import load_config
-    config = load_config(cli_handle=args.handle)
+    config = load_config()
 
     dispatch = {
         "whatif": _run_whatif,

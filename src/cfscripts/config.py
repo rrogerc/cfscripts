@@ -52,11 +52,8 @@ def show_config():
         print(f"  {key} = {value}  (unknown key)")
 
 
-def load_config(cli_handle=None):
+def load_config():
     config = _load()
-
-    if cli_handle is not None:
-        config["handle"] = cli_handle
 
     if config.get("cpp_dir"):
         config["cpp_dir"] = str(Path(os.path.expanduser(config["cpp_dir"])))
