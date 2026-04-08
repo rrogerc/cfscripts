@@ -27,6 +27,31 @@ def get_config_value(key):
     return _load().get(key)
 
 
+_KNOWN_KEYS = [
+    ("handle", True, "Codeforces handle"),
+    ("cpp_dir", False, "C++ file directory for pick command"),
+]
+
+
+def show_config():
+    config = _load()
+    if not config:
+        print("No config set. Run:")
+        print("  cfscripts config handle <your_codeforces_handle>")
+        print("  cfscripts config cpp_dir <path>  (optional)")
+        return
+    for key, required, desc in _KNOWN_KEYS:
+        value = config.get(key)
+        req = "required" if required else "optional"
+        if value:
+            print(f"  {key} = {value}")
+        else:
+            print(f"  {key} = (not set, {req}: {desc})")
+    extra = {k: v for k, v in config.items() if k not in {k for k, _, _ in _KNOWN_KEYS}}
+    for key, value in extra.items():
+        print(f"  {key} = {value}  (unknown key)")
+
+
 def load_config(cli_handle=None):
     config = _load()
 

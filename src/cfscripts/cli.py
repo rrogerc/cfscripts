@@ -65,9 +65,9 @@ def main():
         help="Solved problem stats by rating (bar chart)")
 
     p_config = subparsers.add_parser("config",
-        help="Get or set config values (stored in ~/.config/cfscripts/)")
-    p_config.add_argument("key", help="Config key (handle, cpp_dir)")
-    p_config.add_argument("value", nargs="?", help="Value to set (omit to read)")
+        help="Show or set config values (stored in ~/.config/cfscripts/)")
+    p_config.add_argument("key", nargs="?", help="Config key (handle, cpp_dir)")
+    p_config.add_argument("value", nargs="?", help="Value to set")
 
     p_atcpick = subparsers.add_parser("atcpick",
         help="Pick an unsolved AtCoder ABC problem")
@@ -79,6 +79,11 @@ def main():
     args = parser.parse_args()
 
     if args.command is None:
+        if args.handle:
+            from cfscripts.config import set_config
+            set_config("handle", args.handle)
+            print(f"handle = {args.handle}")
+            return
         parser.print_help()
         sys.exit(1)
 
@@ -116,8 +121,10 @@ def main():
 
 
 def _run_config(args):
-    from cfscripts.config import set_config, get_config_value
-    if args.value is not None:
+    from cfscripts.config import set_config, get_config_value, show_config
+    if args.key is None:
+        show_config()
+    elif args.value is not None:
         set_config(args.key, args.value)
         print(f"{args.key} = {args.value}")
     else:
