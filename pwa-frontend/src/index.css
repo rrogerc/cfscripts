@@ -75,3 +75,8 @@ body {
 .tex-span {
   font-family: "KaTeX_Math", "KaTeX_Main", serif;
 }
+
+/* Override Tailwind SVG block reset for MathJax SVGs */
+mjx-container svg {
+  display: inline;
+}
