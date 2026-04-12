@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 body {
-  background-color: #0f172a; /* tailwind slate-900 */
-  color: #f8fafc; /* tailwind slate-50 */
+  @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-200;
 }
 
-/* Make Codeforces HTML look good in dark mode */
 .problem-statement {
   font-family: ui-sans-serif, system-ui, sans-serif;
   line-height: 1.6;
@@ -27,7 +27,16 @@ body {
 .problem-statement .input-file,
 .problem-statement .output-file {
   font-size: 0.875rem;
-  color: #94a3b8; /* slate-400 */
+  @apply text-slate-500 dark:text-slate-400 flex justify-center gap-1 mb-1;
+}
+
+.problem-statement .property-title {
+  font-weight: 600;
+  @apply text-slate-600 dark:text-slate-300;
+}
+
+.problem-statement .property-title::after {
+  content: ":";
 }
 
 .problem-statement .section-title {
@@ -35,11 +44,11 @@ body {
   font-weight: bold;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
-  color: #e2e8f0;
+  @apply text-slate-800 dark:text-slate-200;
 }
 
 .problem-statement pre {
-  background-color: #1e293b; /* slate-800 */
+  @apply bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200;
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -67,7 +76,6 @@ body {
   list-style-type: disc;
 }
 
-/* Fix inline math spacing */
 .tex-font-style-it {
   font-style: italic;
 }
@@ -76,7 +84,6 @@ body {
   font-family: "KaTeX_Math", "KaTeX_Main", serif;
 }
 
-/* Override Tailwind SVG block reset for MathJax SVGs */
 mjx-container svg {
   display: inline;
 }
