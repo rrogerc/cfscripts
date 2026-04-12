@@ -9,14 +9,14 @@ from . import printer
 _long_session = CachedSession(
     'cf-cache-long',
     backend='filesystem',
-    use_cache_dir=True,
+    use_temp=True,
     match_headers=True,
 )
 
 _short_session = CachedSession(
     'cf-cache-short',
     backend='filesystem',
-    use_cache_dir=True,
+    use_temp=True,
     match_headers=True,
     expire_after=120,
 )
