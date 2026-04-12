@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd pwa-frontend && npm install && npm run build",
+  "buildCommand": "cd pwa-frontend && npm install --legacy-peer-deps && npm run build",
   "outputDirectory": "pwa-frontend/dist",
   "framework": "vite",
   "rewrites": [
