@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+body {
+  background-color: #0f172a; /* tailwind slate-900 */
+  color: #f8fafc; /* tailwind slate-50 */
+}
+
+/* Make Codeforces HTML look good in dark mode */
+.problem-statement {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.problem-statement .header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.problem-statement .title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.problem-statement .time-limit,
+.problem-statement .memory-limit,
+.problem-statement .input-file,
+.problem-statement .output-file {
+  font-size: 0.875rem;
+  color: #94a3b8; /* slate-400 */
+}
+
+.problem-statement .section-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #e2e8f0;
+}
+
+.problem-statement pre {
+  background-color: #1e293b; /* slate-800 */
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+}
+
+.problem-statement .sample-test .title {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 1rem;
+}
+
+.problem-statement .input, .problem-statement .output {
+  margin-bottom: 1rem;
+}
+
+.problem-statement p {
+  margin-bottom: 1rem;
+}
+
+.problem-statement ul, .problem-statement ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+  list-style-type: disc;
+}
+
+/* Fix inline math spacing */
+.tex-font-style-it {
+  font-style: italic;
+}
+
+.tex-span {
+  font-family: "KaTeX_Math", "KaTeX_Main", serif;
+}

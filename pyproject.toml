@@ -11,6 +11,9 @@ dependencies = [
     "requests-cache",
     "rich",
     "numpy",
+    "fastapi",
+    "uvicorn",
+    "beautifulsoup4",
 ]
 
 [project.scripts]

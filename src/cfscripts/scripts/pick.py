@@ -5,8 +5,9 @@ import webbrowser
 from collections import OrderedDict
 from pathlib import Path
 
-from cfscripts.lib.contests import get_div2_contest_ids, get_problems
+from cfscripts.lib.contests import get_div2_contest_ids
 from cfscripts.lib.submissions import get_solved_set
+from cfscripts.core.picker import get_rated_problems, get_problem_by_level, get_problem_by_index
 
 
 CPP_STARTER = r"""#include <iostream>
@@ -26,11 +27,6 @@ int main() {
 void solve() {
 }
 """.lstrip()
-
-
-def _get_rated_problems():
-    """Return list of problems that have a rating."""
-    return [p for p in get_problems() if "rating" in p and p["rating"] is not None]
 
 
 def _sanitize_filename(name):
@@ -107,27 +103,13 @@ def _present_problem(best, cpp_dir=None, open_editor=True, open_browser=True):
 
 def run_level(handle, level, cpp_dir=None, open_editor=True, open_browser=True):
     """Pick the latest unsolved Div. 2 problem at the given rating level."""
-    if level < 8 or level > 32:
-        print("Error: Level must be an integer between 8 and 32 inclusive.")
+    try:
+        best = get_problem_by_level(handle, level)
+    except ValueError as e:
+        print(f"Error: {e}")
         return
 
     target_rating = level * 100
-    rated_problems = _get_rated_problems()
-    div2_contests = get_div2_contest_ids()
-    solved = get_solved_set(handle)
-
-    best = None
-    for p in rated_problems:
-        if p.get("rating") != target_rating:
-            continue
-        cid = p.get("contestId")
-        if cid not in div2_contests:
-            continue
-        if (cid, p["index"]) in solved:
-            continue
-        if best is None or cid > best.get("contestId", 0):
-            best = p
-
     if best is None:
         print("No problem with rating {} found (Level {}).".format(target_rating, level))
         return
@@ -137,30 +119,14 @@ def run_level(handle, level, cpp_dir=None, open_editor=True, open_browser=True):
 
 def run_index(handle, index_letter, cpp_dir=None, open_editor=True, open_browser=True):
     """Pick the latest unsolved Div. 2 problem matching the index letter."""
-    letter = index_letter.strip().upper()
-    if len(letter) != 1 or not letter.isalpha():
-        print("Error: Problem index must be a single letter (e.g., A, B, C).")
+    try:
+        best = get_problem_by_index(handle, index_letter)
+    except ValueError as e:
+        print(f"Error: {e}")
         return
 
-    rated_problems = _get_rated_problems()
-    div2_contests = get_div2_contest_ids()
-    solved = get_solved_set(handle)
-
-    best = None
-    for p in rated_problems:
-        cid = p.get("contestId")
-        if cid not in div2_contests:
-            continue
-        idx = p.get("index", "")
-        if not idx or idx[0].upper() != letter:
-            continue
-        if (cid, p["index"]) in solved:
-            continue
-        if best is None or cid > best.get("contestId", 0):
-            best = p
-
     if best is None:
-        print("No unsolved Codeforces Div. 2 '{}' problem found.".format(letter))
+        print("No unsolved Codeforces Div. 2 '{}' problem found.".format(index_letter.upper()))
         return
 
     _present_problem(best, cpp_dir, open_editor, open_browser)
@@ -168,7 +134,7 @@ def run_index(handle, index_letter, cpp_dir=None, open_editor=True, open_browser
 
 def run_distribution():
     """Print rating distribution of all Div. 2 problems."""
-    rated_problems = _get_rated_problems()
+    rated_problems = get_rated_problems()
     div2_contests = get_div2_contest_ids()
 
     distribution = OrderedDict()
@@ -194,7 +160,7 @@ def run_stats(handle):
     """Print bar chart of solved Div. 2 problems by rating."""
     div2_contests = get_div2_contest_ids()
     solved = get_solved_set(handle)
-    rated_problems = _get_rated_problems()
+    rated_problems = get_rated_problems()
 
     stats = {}
     for p in rated_problems:
