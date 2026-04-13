@@ -65,27 +65,24 @@ function App() {
     }
   };
 
-  // Re-render MathJax when HTML content changes
+  // Set innerHTML and render MathJax outside React's control so that
+  // unrelated re-renders (e.g. level change) don't clobber typeset math.
   useEffect(() => {
-    if (html && contentRef.current && window.MathJax) {
-      const renderMath = async () => {
-        try {
-          // Clear previous MathJax typesetting state just in case
-          if (window.MathJax.typesetClear) {
-            window.MathJax.typesetClear([contentRef.current]);
-          }
-          // Typeset the new injected HTML
-          if (window.MathJax.typesetPromise) {
-            await window.MathJax.typesetPromise([contentRef.current]);
-          }
-        } catch (err) {
-          console.error('MathJax error', err);
-        }
-      };
+    const el = contentRef.current;
+    if (!el) return;
 
-      // Slight delay to guarantee React has flushed the innerHTML to the DOM
-      const timeoutId = setTimeout(renderMath, 50);
-      return () => clearTimeout(timeoutId);
+    if (html && window.MathJax) {
+      if (window.MathJax.typesetClear) {
+        window.MathJax.typesetClear([el]);
+      }
+      el.innerHTML = html;
+      if (window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise([el]).catch((err: any) =>
+          console.error('MathJax error', err)
+        );
+      }
+    } else {
+      el.innerHTML = '';
     }
   }, [html]);
 
@@ -162,10 +159,9 @@ function App() {
             </div>
 
             {/* Injected Codeforces HTML */}
-            <div 
+            <div
               ref={contentRef}
-              className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200" 
-              dangerouslySetInnerHTML={{ __html: html }} 
+              className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200"
             />
           </div>
         ) : (
