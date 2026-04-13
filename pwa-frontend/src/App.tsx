@@ -55,7 +55,10 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
 });
 
 function App() {
-  const [level, setLevel] = useState<number>(15);
+  const [level, setLevel] = useState<number>(() => {
+    const saved = localStorage.getItem('level');
+    return saved ? Number(saved) : 15;
+  });
   const handle = 'tourist'; // Default handle for now
   const [problem, setProblem] = useState<any>(null);
   const [html, setHtml] = useState<string>('');
@@ -131,7 +134,11 @@ function App() {
               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
               <select
                 value={level}
-                onChange={(e) => setLevel(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setLevel(v);
+                  localStorage.setItem('level', String(v));
+                }}
                 className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
               >
                 {Array.from({ length: 25 }, (_, i) => i + 8).map(l => (
