@@ -157,19 +157,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* Floating Action Button for Next Problem (Only shows when reading) */}
-      {html && !loading && (
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none px-4 z-20">
-          <button 
-            onClick={fetchProblem}
-            className="pointer-events-auto bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white shadow-xl dark:shadow-black/50 border border-slate-200 dark:border-slate-700 rounded-full px-6 py-3 flex items-center gap-2 font-medium tracking-wide transition-transform active:scale-95"
-          >
-            <RefreshCw className="w-5 h-5" />
-            Next Problem
-          </button>
-        </div>
-      )}
     </div>
   );
 }
