@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check } from 'lucide-react';
+import TurndownService from 'turndown';
 
 declare global {
   interface Window {
@@ -9,9 +10,62 @@ declare global {
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
+function htmlToMarkdown(html: string, problem: any): string {
+  const td = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+  });
+
+  // Codeforces .section-title → markdown heading
+  td.addRule('sectionTitle', {
+    filter: (node) => node.classList?.contains('section-title') ?? false,
+    replacement: (_content, node) => `\n## ${(node as HTMLElement).textContent?.trim()}\n\n`,
+  });
+
+  // Problem title
+  td.addRule('title', {
+    filter: (node) =>
+      node.classList?.contains('title') === true &&
+      (node.parentElement?.classList?.contains('header') ?? false),
+    replacement: (_content, node) => `# ${(node as HTMLElement).textContent?.trim()}\n\n`,
+  });
+
+  // Property rows (time limit, memory limit) → plain text lines
+  td.addRule('property', {
+    filter: (node) => {
+      const cl = node.classList;
+      return (cl?.contains('time-limit') || cl?.contains('memory-limit') ||
+              cl?.contains('input-file') || cl?.contains('output-file')) ?? false;
+    },
+    replacement: (_content, node) => `${(node as HTMLElement).textContent?.trim()}\n`,
+  });
+
+  // Sample test wrapper — skip the container div, children are handled individually
+  td.addRule('sampleTest', {
+    filter: (node) => node.classList?.contains('sample-test') ?? false,
+    replacement: (content) => content,
+  });
+
+  // Pre blocks inside sample I/O → fenced code blocks
+  td.addRule('samplePre', {
+    filter: (node) => node.nodeName === 'PRE',
+    replacement: (_content, node) => `\n\`\`\`\n${(node as HTMLElement).textContent?.trim()}\n\`\`\`\n\n`,
+  });
+
+  let md = td.turndown(html);
+
+  // Convert Codeforces $$$ delimiters to standard $ for markdown math
+  md = md.replace(/\$\$\$/g, '$');
+
+  // Prepend problem metadata
+  const header = `**${problem.contestId}${problem.index}** | Rating: ${problem.rating}\n\n`;
+  return header + md;
+}
+
 /** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
 const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: any }) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -31,17 +85,33 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
     }
   }, [html]);
 
+  const copyMarkdown = async () => {
+    const md = htmlToMarkdown(html, problem);
+    await navigator.clipboard.writeText(md);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Problem Header Details */}
       <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-          <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-            {problem.contestId}{problem.index}
-          </span>
-          <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
-            Rating: {problem.rating}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+              {problem.contestId}{problem.index}
+            </span>
+            <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
+              Rating: {problem.rating}
+            </span>
+          </div>
+          <button
+            onClick={copyMarkdown}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
+            {copied ? 'Copied' : 'Copy MD'}
+          </button>
         </div>
       </div>
 
