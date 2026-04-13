@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { RefreshCw, AlertCircle, BookOpen, Sun, Moon } from 'lucide-react';
 
 declare global {
@@ -9,6 +9,51 @@ declare global {
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
+/** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
+const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: any }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !html) return;
+
+    el.innerHTML = html;
+
+    if (window.MathJax) {
+      if (window.MathJax.typesetClear) {
+        window.MathJax.typesetClear([el]);
+      }
+      if (window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise([el]).catch((err: any) =>
+          console.error('MathJax error', err)
+        );
+      }
+    }
+  }, [html]);
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Problem Header Details */}
+      <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2 mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+          <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            {problem.contestId}{problem.index}
+          </span>
+          <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
+            Rating: {problem.rating}
+          </span>
+        </div>
+      </div>
+
+      {/* Injected Codeforces HTML — managed via ref, not dangerouslySetInnerHTML */}
+      <div
+        ref={contentRef}
+        className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200"
+      />
+    </div>
+  );
+});
+
 function App() {
   const [level, setLevel] = useState<number>(15);
   const handle = 'tourist'; // Default handle for now
@@ -17,8 +62,6 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-  const contentRef = useRef<HTMLDivElement>(null);
 
   // Initialize theme from localStorage or default to dark
   useEffect(() => {
@@ -65,27 +108,6 @@ function App() {
     }
   };
 
-  // Set innerHTML and render MathJax outside React's control so that
-  // unrelated re-renders (e.g. level change) don't clobber typeset math.
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-
-    if (html && window.MathJax) {
-      if (window.MathJax.typesetClear) {
-        window.MathJax.typesetClear([el]);
-      }
-      el.innerHTML = html;
-      if (window.MathJax.typesetPromise) {
-        window.MathJax.typesetPromise([el]).catch((err: any) =>
-          console.error('MathJax error', err)
-        );
-      }
-    } else {
-      el.innerHTML = '';
-    }
-  }, [html]);
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50 font-sans selection:bg-blue-500/30 transition-colors duration-200">
       {/* Header */}
@@ -95,7 +117,7 @@ function App() {
             <BookOpen className="w-6 h-6" />
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">CF Picker</h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={toggleTheme}
@@ -107,8 +129,8 @@ function App() {
 
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
               <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
-              <select 
-                value={level} 
+              <select
+                value={level}
                 onChange={(e) => setLevel(Number(e.target.value))}
                 className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
               >
@@ -117,7 +139,7 @@ function App() {
                 ))}
               </select>
             </div>
-            <button 
+            <button
               onClick={fetchProblem}
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
@@ -145,25 +167,7 @@ function App() {
             </button>
           </div>
         ) : html ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-            {/* Problem Header Details */}
-            <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                  {problem.contestId}{problem.index}
-                </span>
-                <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
-                  Rating: {problem.rating}
-                </span>
-              </div>
-            </div>
-
-            {/* Injected Codeforces HTML */}
-            <div
-              ref={contentRef}
-              className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200"
-            />
-          </div>
+          <ProblemContent html={html} problem={problem} />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4">
             <BookOpen className="w-16 h-16 opacity-20" />
