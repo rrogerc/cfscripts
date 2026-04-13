@@ -10,3 +10,4 @@ requirements.txt
 __pycache__/
 dist/
 build/
+.vercel
