@@ -65,8 +65,25 @@ function App() {
 
   // Re-render MathJax when HTML content changes
   useEffect(() => {
-    if (html && window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetPromise([contentRef.current]).catch((err: any) => console.log('MathJax error', err));
+    if (html && contentRef.current && window.MathJax) {
+      const renderMath = async () => {
+        try {
+          // Clear previous MathJax typesetting state just in case
+          if (window.MathJax.typesetClear) {
+            window.MathJax.typesetClear([contentRef.current]);
+          }
+          // Typeset the new injected HTML
+          if (window.MathJax.typesetPromise) {
+            await window.MathJax.typesetPromise([contentRef.current]);
+          }
+        } catch (err) {
+          console.error('MathJax error', err);
+        }
+      };
+
+      // Slight delay to guarantee React has flushed the innerHTML to the DOM
+      const timeoutId = setTimeout(renderMath, 50);
+      return () => clearTimeout(timeoutId);
     }
   }, [html]);
 
