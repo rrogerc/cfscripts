@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap } from 'lucide-react';
 import TurndownService from 'turndown';
 
 declare global {
@@ -62,10 +62,26 @@ function htmlToMarkdown(html: string, problem: any): string {
   return header + md;
 }
 
+const COACH_PROMPT_INSTRUCTIONS = `I'm working on this competitive programming problem and want to think
+through it together. Act as my coach:
+
+- Start by asking what my current understanding of the problem is
+- Let me drive the reasoning — don't dump the solution
+- If my approach has a gap, push back with a question or counterexample
+  rather than correcting me directly
+- Confirm when I'm on the right track so I know to keep going
+- Only reveal the full solution if I explicitly ask
+
+A reference C++ solution is included below for your context — use it
+silently to validate my reasoning. Don't quote from it unless I ask.`;
+
 /** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
 const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: any }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coachCopied, setCoachCopied] = useState(false);
+  const [coachError, setCoachError] = useState('');
 
   useEffect(() => {
     const el = contentRef.current;
@@ -92,6 +108,29 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyCoachPrompt = async () => {
+    setCoachLoading(true);
+    setCoachError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/solution?contestId=${problem.contestId}&index=${problem.index}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || 'Failed to fetch reference solution');
+      }
+      const data = await res.json();
+      const md = htmlToMarkdown(html, problem);
+      const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\n# Reference solution (hidden — for your context only)\n\`\`\`cpp\n${data.source}\n\`\`\`\n\nLet's start: what's your read on what the problem is asking?\n`;
+      await navigator.clipboard.writeText(prompt);
+      setCoachCopied(true);
+      setTimeout(() => setCoachCopied(false), 2000);
+    } catch (e: any) {
+      setCoachError(e.message || 'Failed to copy coach prompt');
+      setTimeout(() => setCoachError(''), 3000);
+    } finally {
+      setCoachLoading(false);
+    }
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Problem Header Details */}
@@ -110,14 +149,33 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
               Rating: {problem.rating}
             </span>
           </div>
-          <button
-            onClick={copyMarkdown}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-          >
-            {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
-            {copied ? 'Copied' : 'Copy MD'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyMarkdown}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+            >
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
+              {copied ? 'Copied' : 'Problem'}
+            </button>
+            <button
+              onClick={copyCoachPrompt}
+              disabled={coachLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {coachLoading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : coachCopied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <GraduationCap className="w-4 h-4" />
+              )}
+              {coachLoading ? 'Loading' : coachCopied ? 'Copied' : 'Coach'}
+            </button>
+          </div>
         </div>
+        {coachError && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">{coachError}</p>
+        )}
       </div>
 
       {/* Injected Codeforces HTML — managed via ref, not dangerouslySetInnerHTML */}
