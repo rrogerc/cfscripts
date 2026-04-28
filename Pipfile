@@ -4,14 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-requests = "*"
 rich = "*"
 requests-cache = "*"
 pyinstaller = "*"
 numpy = "*"
+requests = "*"
+beautifulsoup4 = "*"
+cloudscraper = "*"
+pycryptodome = "*"
 
 [dev-packages]
 
 [requires]
 python_version = "3.10"
-

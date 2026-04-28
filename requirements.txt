@@ -3,3 +3,4 @@ uvicorn
 beautifulsoup4
 requests
 requests-cache
+cloudscraper

@@ -1,17 +1,20 @@
-import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 
 from cfscripts.lib.api import get_results, CACHE_LONG
 
-_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-}
+# Reused across requests so the Cloudflare clearance cookie is cached.
+# On Vercel Fluid Compute, instances persist across invocations, so the
+# JS challenge is solved once per warm instance instead of per request.
+_scraper = cloudscraper.create_scraper(
+    browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False}
+)
 
 
 def get_problem_html(contest_id, index):
     """Fetch and extract the problem statement HTML from Codeforces."""
     url = f"https://codeforces.com/problemset/problem/{contest_id}/{index}"
-    response = requests.get(url, headers=_HEADERS)
+    response = _scraper.get(url)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -49,7 +52,7 @@ def find_ac_cpp_submission(contest_id, index):
 def get_submission_source(contest_id, submission_id):
     """Scrape the source code of a submission from Codeforces."""
     url = f"https://codeforces.com/contest/{contest_id}/submission/{submission_id}"
-    response = requests.get(url, headers=_HEADERS)
+    response = _scraper.get(url)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, 'html.parser')
