@@ -10,6 +10,30 @@ declare global {
 
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
+// textContent collapses block boundaries — walk the tree and emit \n
+// for each <div>/<p>/<li>/<br> so CF's per-line sample I/O divs and
+// property-title labels survive markdown extraction.
+function blockTextContent(node: Node): string {
+  const BLOCK = new Set(['DIV', 'P', 'LI', 'TR']);
+  const out: string[] = [];
+  const endsWithNL = () => out.length > 0 && out[out.length - 1].endsWith('\n');
+  const walk = (n: Node) => {
+    if (n.nodeType === Node.TEXT_NODE) {
+      out.push(n.textContent || '');
+      return;
+    }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const el = n as Element;
+    if (el.tagName === 'BR') { out.push('\n'); return; }
+    const isBlock = BLOCK.has(el.tagName);
+    if (isBlock && out.length && !endsWithNL()) out.push('\n');
+    el.childNodes.forEach(walk);
+    if (isBlock && !endsWithNL()) out.push('\n');
+  };
+  walk(node);
+  return out.join('');
+}
+
 function htmlToMarkdown(html: string, problem: any): string {
   const td = new TurndownService({
     headingStyle: 'atx',
@@ -30,14 +54,17 @@ function htmlToMarkdown(html: string, problem: any): string {
     replacement: (_content, node) => `# ${(node as HTMLElement).textContent?.trim()}\n\n`,
   });
 
-  // Property rows (time limit, memory limit) → plain text lines
+  // Property rows (time limit, memory limit) → "label: value"
   td.addRule('property', {
     filter: (node) => {
       const cl = node.classList;
       return (cl?.contains('time-limit') || cl?.contains('memory-limit') ||
               cl?.contains('input-file') || cl?.contains('output-file')) ?? false;
     },
-    replacement: (_content, node) => `${(node as HTMLElement).textContent?.trim()}\n`,
+    replacement: (_content, node) => {
+      const parts = blockTextContent(node).split('\n').map(s => s.trim()).filter(Boolean);
+      return `${parts.join(': ')}\n`;
+    },
   });
 
   // Sample test wrapper — skip the container div, children are handled individually
@@ -49,7 +76,10 @@ function htmlToMarkdown(html: string, problem: any): string {
   // Pre blocks inside sample I/O → fenced code blocks
   td.addRule('samplePre', {
     filter: (node) => node.nodeName === 'PRE',
-    replacement: (_content, node) => `\n\`\`\`\n${(node as HTMLElement).textContent?.trim()}\n\`\`\`\n\n`,
+    replacement: (_content, node) => {
+      const text = blockTextContent(node).split('\n').map(s => s.trimEnd()).join('\n').trim();
+      return `\n\`\`\`\n${text}\n\`\`\`\n\n`;
+    },
   });
 
   let md = td.turndown(html);
