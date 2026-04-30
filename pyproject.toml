@@ -14,6 +14,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "beautifulsoup4",
+    "cloudscraper",
 ]
 
 [project.scripts]
