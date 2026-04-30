@@ -70,18 +70,13 @@ through it together. Act as my coach:
 - If my approach has a gap, push back with a question or counterexample
   rather than correcting me directly
 - Confirm when I'm on the right track so I know to keep going
-- Only reveal the full solution if I explicitly ask
-
-A reference C++ solution is included below for your context — use it
-silently to validate my reasoning. Don't quote from it unless I ask.`;
+- Only reveal the full solution if I explicitly ask`;
 
 /** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
 const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: any }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
-  const [coachLoading, setCoachLoading] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
-  const [coachError, setCoachError] = useState('');
 
   useEffect(() => {
     const el = contentRef.current;
@@ -109,26 +104,11 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
   };
 
   const copyCoachPrompt = async () => {
-    setCoachLoading(true);
-    setCoachError('');
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/solution?contestId=${problem.contestId}&index=${problem.index}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.detail || 'Failed to fetch reference solution');
-      }
-      const data = await res.json();
-      const md = htmlToMarkdown(html, problem);
-      const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\n# Reference solution (hidden — for your context only)\n\`\`\`cpp\n${data.source}\n\`\`\`\n\nLet's start: what's your read on what the problem is asking?\n`;
-      await navigator.clipboard.writeText(prompt);
-      setCoachCopied(true);
-      setTimeout(() => setCoachCopied(false), 2000);
-    } catch (e: any) {
-      setCoachError(e.message || 'Failed to copy coach prompt');
-      setTimeout(() => setCoachError(''), 3000);
-    } finally {
-      setCoachLoading(false);
-    }
+    const md = htmlToMarkdown(html, problem);
+    const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\nLet's start: what's your read on what the problem is asking?\n`;
+    await navigator.clipboard.writeText(prompt);
+    setCoachCopied(true);
+    setTimeout(() => setCoachCopied(false), 2000);
   };
 
   return (
@@ -159,23 +139,13 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
             </button>
             <button
               onClick={copyCoachPrompt}
-              disabled={coachLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
             >
-              {coachLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : coachCopied ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <GraduationCap className="w-4 h-4" />
-              )}
-              {coachLoading ? 'Loading' : coachCopied ? 'Copied' : 'Coach'}
+              {coachCopied ? <Check className="w-4 h-4 text-green-500" /> : <GraduationCap className="w-4 h-4" />}
+              {coachCopied ? 'Copied' : 'Coach'}
             </button>
           </div>
         </div>
-        {coachError && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400">{coachError}</p>
-        )}
       </div>
 
       {/* Injected Codeforces HTML — managed via ref, not dangerouslySetInnerHTML */}
