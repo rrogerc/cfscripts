@@ -155,6 +155,14 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
             >
               {problem.contestId}{problem.index}
             </a>
+            <a
+              href={`https://codeforces.com/contest/${problem.contestId}/problem/${problem.index}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              contest
+            </a>
             <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
               Rating: {problem.rating}
             </span>
