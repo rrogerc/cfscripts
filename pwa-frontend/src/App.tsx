@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap, Code } from 'lucide-react';
 import TurndownService from 'turndown';
 
 declare global {
@@ -102,11 +102,32 @@ through it together. Act as my coach:
 - Confirm when I'm on the right track so I know to keep going
 - Only reveal the full solution if I explicitly ask`;
 
+const CPP_TEMPLATE = `#include <bits/stdc++.h>
+
+using namespace std;
+
+void solve() {
+
+
+}
+
+int main() {
+    int tc;
+
+    cin >> tc;
+
+    while (tc--) {
+        solve();
+    }
+}
+`;
+
 /** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
 const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: any }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
+  const [templateCopied, setTemplateCopied] = useState(false);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -141,11 +162,17 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
     setTimeout(() => setCoachCopied(false), 2000);
   };
 
+  const copyTemplate = async () => {
+    await navigator.clipboard.writeText(CPP_TEMPLATE);
+    setTemplateCopied(true);
+    setTimeout(() => setTemplateCopied(false), 2000);
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Problem Header Details */}
       <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
             <a
               href={`https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`}
@@ -174,6 +201,13 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
             >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
               {copied ? 'Copied' : 'Problem'}
+            </button>
+            <button
+              onClick={copyTemplate}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+            >
+              {templateCopied ? <Check className="w-4 h-4 text-green-500" /> : <Code className="w-4 h-4" />}
+              {templateCopied ? 'Copied' : 'Template'}
             </button>
             <button
               onClick={copyCoachPrompt}
