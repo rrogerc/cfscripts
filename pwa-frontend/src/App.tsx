@@ -234,7 +234,7 @@ function App() {
     const saved = localStorage.getItem('level');
     return saved ? Number(saved) : 15;
   });
-  const handle = 'tourist'; // Default handle for now
+  const handle = 'Exonerate';
   const [problem, setProblem] = useState<any>(null);
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);

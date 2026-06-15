@@ -3,15 +3,15 @@ from urllib.parse import quote_plus
 
 from .api import get_results, CACHE_SHORT
 
-def get_submissions(handle):
+def get_submissions(handle, cache_type=CACHE_SHORT):
     url = "https://codeforces.com/api/user.status?handle={}&from=1&count=1000000".format(
         quote_plus(str(handle))
     )
-    return get_results(url, CACHE_SHORT)
+    return get_results(url, cache_type)
 
-def get_solved_set(handle):
+def get_solved_set(handle, cache_type=CACHE_SHORT):
     """Return set of (contestId, index) tuples for all AC'd problems."""
-    subs = get_submissions(handle)
+    subs = get_submissions(handle, cache_type)
     solved = set()
     for s in subs:
         if s.get("verdict") == "OK" and "contestId" in s.get("problem", {}):
