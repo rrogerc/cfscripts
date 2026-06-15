@@ -17,7 +17,9 @@ app.add_middleware(
 @app.get("/api/pick")
 def pick_problem(handle: str, level: int):
     try:
-        best = get_problem_by_level(handle, level)
+        # Skip the per-user solved-set fetch (the slowest call): the web app
+        # is not personalized, so it just returns the latest problem at the level.
+        best = get_problem_by_level(handle, level, use_solved=False)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
