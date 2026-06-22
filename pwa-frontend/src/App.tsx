@@ -92,15 +92,15 @@ function htmlToMarkdown(html: string, problem: any): string {
   return header + md;
 }
 
-const COACH_PROMPT_INSTRUCTIONS = `I'm working on this competitive programming problem and want to think
-through it together. Act as my coach:
+const COACH_PROMPT_INSTRUCTIONS = `I'm working on this competitive programming problem and want to think it
+through with you. Coach me — don't just hand over the solution:
 
-- Start by asking what my current understanding of the problem is
-- Let me drive the reasoning — don't dump the solution
-- If my approach has a gap, push back with a question or counterexample
-  rather than correcting me directly
-- Confirm when I'm on the right track so I know to keep going
-- Only reveal the full solution if I explicitly ask`;
+- Meet me where I am. If I share code, read it carefully first (even when it
+  already works) and treat it as what I already understand — build from there
+  instead of re-teaching it.
+- Let me drive the reasoning. When something's off, nudge me with a question
+  or counterexample rather than correcting me outright.
+- Only walk through the full solution if I ask.`;
 
 const CPP_TEMPLATE = `#include <bits/stdc++.h>
 
@@ -156,7 +156,7 @@ const ProblemContent = memo(function ProblemContent({ html, problem }: { html: s
 
   const copyCoachPrompt = async () => {
     const md = htmlToMarkdown(html, problem);
-    const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\nLet's start: what's your read on what the problem is asking?\n`;
+    const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\nLet's start: paste whatever code you've got and I'll work from it — otherwise, tell me how you're reading the problem.\n`;
     await navigator.clipboard.writeText(prompt);
     setCoachCopied(true);
     setTimeout(() => setCoachCopied(false), 2000);
