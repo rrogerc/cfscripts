@@ -85,6 +85,11 @@ def get_results(url, cache_type=CACHE_NONE):
             raise NoRatingChangesError(url)
 
         last_error = content.get("comment", "unknown API error")
+        # Only rate-limit errors are transient; anything else (bad handle,
+        # restricted parameters, missing contest) is permanent — retrying
+        # would just burn the full backoff schedule on the same answer.
+        if "limit exceeded" not in str(last_error).lower():
+            raise ApiError("{} for {}".format(last_error, url))
         delay = min(0.5 * 2 ** attempt, 30)
         printer.log("API error: {}, retrying in {:.1f}s...".format(last_error, delay))
         sleep(delay)

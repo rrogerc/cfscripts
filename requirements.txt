@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+numpy
 beautifulsoup4
 requests
 requests-cache

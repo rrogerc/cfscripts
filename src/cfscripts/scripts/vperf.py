@@ -57,7 +57,7 @@ def run(handle, contest_id=None, count=5):
     with Live(group, refresh_per_second=10, screen=False, transient=False, vertical_overflow="visible"):
         for cid, time in contest_ids:
             set_status("Calculating performance for {} -- {} ...".format(contest_map[cid]["name"], cid))
-            data = calculator.get_performance(cid)
+            data = calculator.get_performance(cid, start_time=time)
             data["time"] = time
             performance_color = get_rating_color(data["performance"])
             rating_color = get_rating_color(data["rating"])

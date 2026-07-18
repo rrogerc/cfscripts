@@ -1,6 +1,7 @@
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 
+from . import virtual
 from .rating import RatingTracker, get_rating_changes_for_contest, get_ratedlist
 from .api import NoRatingChangesError, ApiError
 from .contests import get_contest_and_standings
@@ -31,9 +32,15 @@ class UserPerformanceCalculator:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             list(executor.map(fetch_one, contest_ids))
 
-    def get_performance(self, contest_id, current_rating=None):
+    def get_performance(self, contest_id, current_rating=None, ratedlist_fallback=True, start_time=None):
+        """Compute rank/delta/performance for one contest participation.
+
+        start_time selects which run to reconstruct when the user has several
+        (e.g. multiple virtual runs of the same contest); None picks the
+        latest. Official participations come straight from the standings.
+        """
         try:
-            contest, standings = get_contest_and_standings(contest_id)
+            contest, problems, standings = get_contest_and_standings(contest_id)
         except ApiError:
             return {
                 "contest_id" : contest_id,
@@ -49,27 +56,48 @@ class UserPerformanceCalculator:
                 "result_status" : "api_error",
                 "user_was_rated" : False,
             }
+
+        # The API only returns official CONTESTANT rows now (see
+        # get_contest_and_standings), so this loop builds the official pool.
         contestants = {}
+        official_results = []
         participation_type = None
         rank = None
         for stand in standings:
-            part_type = stand["party"]["participantType"]
-            if part_type == "PRACTICE": continue
-            members = stand["party"]["members"]
-            if len(members) == 1:
-                handle = members[0]["handle"]
-                points = stand["points"]
-                penalty = stand["penalty"]
-                if part_type == "CONTESTANT":
-                    if handle not in contestants:
-                        contestants[handle] = ContestantEntry(handle, _UNSET, _UNSET, _UNSET)
-                    contestants[handle] = contestants[handle]._replace(points=points, penalty=penalty)
-                if handle == self.handle:
-                    start_time = int(stand["party"]["startTimeSeconds"])
-                    rating = self.rating_tracker.get_rating_at_time(start_time)
-                    contestants[handle] = ContestantEntry(handle, points, penalty, rating)
-                    participation_type = part_type
-                    rank = stand["rank"]
+            party = stand["party"]
+            if party["participantType"] != "CONTESTANT":
+                continue
+            members = party["members"]
+            if len(members) != 1:
+                continue
+            handle = members[0]["handle"]
+            points = stand["points"]
+            penalty = stand["penalty"]
+            contestants[handle] = ContestantEntry(handle, points, penalty, _UNSET)
+            official_results.append((points, penalty))
+            if handle == self.handle:
+                run_start = int(party["startTimeSeconds"])
+                rating = self.rating_tracker.get_rating_at_time(run_start)
+                contestants[handle] = contestants[handle]._replace(rating=rating)
+                participation_type = "CONTESTANT"
+                rank = stand["rank"]
+
+        if participation_type is None:
+            # Virtual or out-of-competition run — the API no longer exposes
+            # those standings rows, so rebuild the result from submissions
+            # and rank it by insertion into the official standings.
+            runs = virtual.get_contest_runs(self.handle, contest_id)
+            run_key = virtual.pick_run(runs, start_time)
+            if run_key is None:
+                raise KeyError(
+                    "No participation found for {} in contest {}".format(
+                        self.handle, contest_id))
+            participation_type, run_start = run_key
+            points, penalty = virtual.score_run(contest, problems, runs[run_key])
+            rank = virtual.insertion_rank(points, penalty, official_results)
+            rating = self.rating_tracker.get_rating_at_time(run_start)
+            contestants[self.handle] = ContestantEntry(
+                self.handle, points, penalty, rating)
 
         if current_rating is not None:
             contestants[self.handle] = contestants[self.handle]._replace(rating=current_rating)
@@ -98,6 +126,25 @@ class UserPerformanceCalculator:
         user_was_rated = False
         if len(rating_changes) == 0:
             result_status = "just_ended"
+            if not ratedlist_fallback:
+                # Rating changes not published yet and the ratedList fallback
+                # is too heavy for this caller (e.g. serverless) — report the
+                # raw result without a delta estimate.
+                me = contestants[self.handle]
+                return {
+                    "contest_id" : contest_id,
+                    "contest_name" : contest["name"],
+                    "handle" : self.handle,
+                    "points" : int(me.points),
+                    "penalty" : int(me.penalty),
+                    "rating" : int(me.rating),
+                    "rank" : int(rank),
+                    "delta" : "unknown",
+                    "performance" : "unknown",
+                    "participation_type" : participation_type.lower(),
+                    "result_status" : result_status,
+                    "user_was_rated" : False,
+                }
             ratings = get_ratedlist()
             for user in ratings:
                 handle = user["handle"]
