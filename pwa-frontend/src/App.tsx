@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap, Code } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap, Code, TrendingUp } from 'lucide-react';
 import TurndownService from 'turndown';
+import { API_BASE_URL } from './api';
+import { RatingView } from './RatingView';
 
 declare global {
   interface Window {
     MathJax: any;
   }
 }
-
-const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
 // textContent collapses block boundaries — walk the tree and emit \n
 // for each <div>/<p>/<li>/<br> so CF's per-line sample I/O divs and
@@ -235,6 +235,7 @@ function App() {
     return saved ? Number(saved) : 15;
   });
   const handle = 'Exonerate';
+  const [tab, setTab] = useState<'pick' | 'rating'>('pick');
   const [problem, setProblem] = useState<any>(null);
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -305,59 +306,97 @@ function App() {
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
 
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
-              <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
-              <select
-                value={level}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setLevel(v);
-                  localStorage.setItem('level', String(v));
-                }}
-                className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
-              >
-                {Array.from({ length: 25 }, (_, i) => i + 8).map(l => (
-                  <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={fetchProblem}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Pick</span>
-            </button>
+            {tab === 'pick' && (
+              <>
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
+                  <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
+                  <select
+                    value={level}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setLevel(v);
+                      localStorage.setItem('level', String(v));
+                    }}
+                    className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
+                  >
+                    {Array.from({ length: 25 }, (_, i) => i + 8).map(l => (
+                      <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={fetchProblem}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                >
+                  <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Pick</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-2xl mx-auto p-4 md:p-6 lg:py-8 flex flex-col">
-        {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-500" />
-            <p className="text-lg">Finding a great problem...</p>
-          </div>
-        ) : error ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-red-600 dark:text-red-400 space-y-3 bg-red-50 dark:bg-red-950/20 p-6 rounded-2xl border border-red-200 dark:border-red-900/50">
-            <AlertCircle className="w-10 h-10" />
-            <p className="text-center font-medium">{error}</p>
-            <button onClick={fetchProblem} className="mt-4 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-lg transition-colors border border-slate-200 dark:border-slate-700">
-              Try Again
-            </button>
-          </div>
-        ) : html ? (
-          <ProblemContent html={html} problem={problem} />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4">
-            <BookOpen className="w-16 h-16 opacity-20" />
-            <p className="text-lg font-medium text-center text-slate-600 dark:text-slate-400">Tap Pick to find a problem.</p>
-            <p className="text-sm text-center max-w-sm opacity-60">Level {level} corresponds to rating {level * 100}. Adjust the level in the top right.</p>
-          </div>
-        )}
+      {/* Main Content Area — both views stay mounted so MathJax DOM and
+          fetched rating rows survive tab switches */}
+      <main className="flex-1 w-full max-w-2xl mx-auto p-4 md:p-6 lg:py-8 pb-16 flex flex-col">
+        <div className={tab === 'pick' ? 'flex-1 flex flex-col' : 'hidden'}>
+          {loading ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-500" />
+              <p className="text-lg">Finding a great problem...</p>
+            </div>
+          ) : error ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-red-600 dark:text-red-400 space-y-3 bg-red-50 dark:bg-red-950/20 p-6 rounded-2xl border border-red-200 dark:border-red-900/50">
+              <AlertCircle className="w-10 h-10" />
+              <p className="text-center font-medium">{error}</p>
+              <button onClick={fetchProblem} className="mt-4 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-lg transition-colors border border-slate-200 dark:border-slate-700">
+                Try Again
+              </button>
+            </div>
+          ) : html ? (
+            <ProblemContent html={html} problem={problem} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4">
+              <BookOpen className="w-16 h-16 opacity-20" />
+              <p className="text-lg font-medium text-center text-slate-600 dark:text-slate-400">Tap Pick to find a problem.</p>
+              <p className="text-sm text-center max-w-sm opacity-60">Level {level} corresponds to rating {level * 100}. Adjust the level in the top right.</p>
+            </div>
+          )}
+        </div>
+        <div className={tab === 'rating' ? 'flex-1 flex flex-col' : 'hidden'}>
+          <RatingView handle={handle} active={tab === 'rating'} />
+        </div>
       </main>
+
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] transition-colors duration-200">
+        <div className="max-w-2xl mx-auto flex">
+          <button
+            onClick={() => setTab('pick')}
+            className={`flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors ${
+              tab === 'pick'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            <span className="text-xs font-medium">Pick</span>
+          </button>
+          <button
+            onClick={() => setTab('rating')}
+            className={`flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors ${
+              tab === 'rating'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <TrendingUp className="w-5 h-5" />
+            <span className="text-xs font-medium">Rating</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
