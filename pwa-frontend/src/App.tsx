@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, ClipboardCopy, Check, GraduationCap, Code, TrendingUp } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, ClipboardCopy, Check, GraduationCap, Code, TrendingUp } from 'lucide-react';
 import TurndownService from 'turndown';
 import { API_BASE_URL } from './api';
 import { RatingView } from './RatingView';
@@ -240,29 +240,28 @@ function App() {
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-  // Initialize theme from localStorage or default to dark
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light' || savedTheme === 'dark') {
-      setTheme(savedTheme);
-    }
-  }, []);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>(() => {
+    const saved = localStorage.getItem('theme');
+    return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'dark';
+  });
 
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0f172a');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#ffffff');
-    }
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const dark = theme === 'dark' || (theme === 'auto' && media.matches);
+      document.documentElement.classList.toggle('dark', dark);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0f172a' : '#ffffff');
+    };
+    apply();
     localStorage.setItem('theme', theme);
+    if (theme === 'auto') {
+      media.addEventListener('change', apply);
+      return () => media.removeEventListener('change', apply);
+    }
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const cycleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : prev === 'dark' ? 'auto' : 'light');
   };
 
   const fetchProblem = async () => {
@@ -299,11 +298,14 @@ function App() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={toggleTheme}
+              onClick={cycleTheme}
               className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              aria-label="Toggle theme"
+              aria-label={`Theme: ${theme}`}
+              title={`Theme: ${theme}`}
             >
-              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              {theme === 'light' ? <Sun className="w-5 h-5" />
+                : theme === 'dark' ? <Moon className="w-5 h-5" />
+                : <Monitor className="w-5 h-5" />}
             </button>
 
             {tab === 'pick' && (
