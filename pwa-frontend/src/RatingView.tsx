@@ -20,7 +20,23 @@ type Perf = {
   performance: number | string;
   participation_type: string;
   result_status: string;
+  user_was_rated: boolean;
 };
+
+type SimPoint = {
+  contest_id: number;
+  contest_name: string;
+  start_time: number;
+  oldRating: number;
+  newRating: number;
+  delta: number;
+};
+
+type SimState =
+  | { status: 'idle' }
+  | { status: 'running'; done: number; total: number; points: SimPoint[] }
+  | { status: 'done'; points: SimPoint[]; stale?: boolean }
+  | { status: 'error'; message: string; points: SimPoint[] };
 
 type RowState =
   | { status: 'loading' }
@@ -69,14 +85,70 @@ const CACHEABLE_STATUSES = new Set(['normal', 'unrated/old/unusual']);
 const cacheKey = (handle: string, p: Participation) =>
   `perf:v1:${handle}:${p.contest_id}:${p.start_time}`;
 
+// Codeforces "fake rating" adjustment for new accounts (mirrors scripts/whatif.py):
+// displayed rating = real rating - ADJUSTMENT[min(ratedContests, 6)],
+// with an internal starting rating of 1400.
+const RATING_ADJUSTMENT = [1400, 900, 550, 300, 150, 50, 0];
+const INITIAL_RATING = 1400;
+const displayedRating = (real: number, nRated: number) =>
+  real - RATING_ADJUSTMENT[Math.min(nRated, RATING_ADJUSTMENT.length - 1)];
+
+const simSignature = (parts: Participation[]) =>
+  parts.map(p => `${p.contest_id}:${p.start_time}`).join(',');
+const simResultKey = (handle: string) => `whatifResult:v1:${handle}`;
+// The step cache is keyed by the incoming simulated rating too: the delta for
+// contest N depends on the rating carried out of contest N-1.
+const simStepKey = (handle: string, p: Participation, ratingIn: number) =>
+  `whatifStep:v1:${handle}:${p.contest_id}:${p.start_time}:${ratingIn}`;
+
+function Sparkline({ points }: { points: SimPoint[] }) {
+  if (points.length < 2) return null;
+  const values = points.map(p => p.newRating);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 300;
+  const H = 60;
+  const PAD = 4;
+  const coords = values.map((v, i) => {
+    const x = PAD + (i * (W - 2 * PAD)) / (values.length - 1);
+    const y = H - PAD - ((v - min) * (H - 2 * PAD)) / range;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-16" preserveAspectRatio="none">
+        <polyline
+          points={coords.join(' ')}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="text-blue-500"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
+        <span>{new Date(points[0].start_time * 1000).toLocaleDateString()}</span>
+        <span>
+          {min} – {max}
+        </span>
+        <span>{new Date(points[points.length - 1].start_time * 1000).toLocaleDateString()}</span>
+      </div>
+    </div>
+  );
+}
+
 export function RatingView({ handle, active }: { handle: string; active: boolean }) {
   const [parts, setParts] = useState<Participation[] | null>(null);
+  const [officialRating, setOfficialRating] = useState<number | null>(null);
   const [rows, setRows] = useState<Record<number, RowState>>({});
   const [visible, setVisible] = useState(PAGE_SIZE);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState('');
+  const [sim, setSim] = useState<SimState>({ status: 'idle' });
   const startedRef = useRef(false);
   const queuedRef = useRef<Set<number>>(new Set());
+  const simRunningRef = useRef(false);
 
   const fetchPerf = async (p: Participation) => {
     const key = cacheKey(handle, p);
@@ -133,10 +205,109 @@ export function RatingView({ handle, active }: { handle: string; active: boolean
       }
       const data = await res.json();
       setParts(data.participations);
+      setOfficialRating(data.official_rating ?? null);
+      // Restore a previously computed simulation; flag it stale when the
+      // participation list has changed since it ran.
+      const stored = localStorage.getItem(simResultKey(handle));
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setSim({
+            status: 'done',
+            points: parsed.points,
+            stale: parsed.signature !== simSignature(data.participations),
+          });
+        } catch {
+          localStorage.removeItem(simResultKey(handle));
+        }
+      }
     } catch (err) {
       setListError(err instanceof Error ? err.message : 'Failed to load participations.');
     } finally {
       setListLoading(false);
+    }
+  };
+
+  // Whatif chain (mirrors scripts/whatif.py): walk participations oldest to
+  // newest, feeding each contest the simulated rating carried out of the
+  // previous one. Sequential by necessity — each delta depends on the last.
+  const runSimulation = async () => {
+    if (!parts || parts.length === 0 || simRunningRef.current) return;
+    simRunningRef.current = true;
+    const ordered = [...parts].sort((a, b) => a.start_time - b.start_time);
+    const points: SimPoint[] = [];
+    let real = INITIAL_RATING;
+    let nRated = 0;
+    setSim({ status: 'running', done: 0, total: ordered.length, points: [] });
+    try {
+      for (let i = 0; i < ordered.length; i++) {
+        const p = ordered[i];
+        const stepKey = simStepKey(handle, p, real);
+        let perf: Perf | null = null;
+        const cached = localStorage.getItem(stepKey);
+        if (cached) {
+          try {
+            perf = JSON.parse(cached);
+          } catch {
+            localStorage.removeItem(stepKey);
+          }
+        }
+        if (!perf) {
+          const res = await fetch(
+            `${API_BASE_URL}/api/perf?handle=${handle}&contest_id=${p.contest_id}&start_time=${p.start_time}&rating=${real}`
+          );
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => null);
+            throw new Error(errorData?.detail || `Error: ${res.statusText}`);
+          }
+          perf = (await res.json()) as Perf;
+          if (CACHEABLE_STATUSES.has(perf.result_status)) {
+            try {
+              localStorage.setItem(stepKey, JSON.stringify(perf));
+            } catch {
+              // storage full — step just won't be cached
+            }
+          }
+        }
+        // Skip rules from scripts/whatif.py: zero-point runs, unknown deltas,
+        // and official participations that weren't rated for the user.
+        const applicable =
+          typeof perf.delta === 'number' &&
+          perf.points > 0 &&
+          !(p.participation_type === 'contestant' && !perf.user_was_rated);
+        if (applicable) {
+          const dispOld = displayedRating(real, nRated);
+          real += perf.delta as number;
+          nRated += 1;
+          const dispNew = displayedRating(real, nRated);
+          points.push({
+            contest_id: p.contest_id,
+            contest_name: p.contest_name,
+            start_time: p.start_time,
+            oldRating: dispOld,
+            newRating: dispNew,
+            delta: dispNew - dispOld,
+          });
+        }
+        setSim({ status: 'running', done: i + 1, total: ordered.length, points: [...points] });
+      }
+      setSim({ status: 'done', points });
+      try {
+        localStorage.setItem(
+          simResultKey(handle),
+          JSON.stringify({ signature: simSignature(parts), points })
+        );
+      } catch {
+        // storage full
+      }
+    } catch (err) {
+      setSim({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'Simulation failed',
+        points,
+      });
+    } finally {
+      simRunningRef.current = false;
     }
   };
 
@@ -211,6 +382,9 @@ export function RatingView({ handle, active }: { handle: string; active: boolean
     );
   }
 
+  const simPoints = sim.status === 'idle' ? [] : sim.points;
+  const simFinal = simPoints.length > 0 ? simPoints[simPoints.length - 1].newRating : null;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24 space-y-3">
       <div className="flex items-center justify-between pb-1">
@@ -224,6 +398,68 @@ export function RatingView({ handle, active }: { handle: string; active: boolean
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
+      </div>
+
+      {/* Rating summary */}
+      <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-slate-400 dark:text-slate-500">official rating</p>
+            <p className={`text-2xl font-bold ${ratingColorClass(officialRating ?? '—')}`}>
+              {officialRating ?? '—'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              if virtuals counted
+              {sim.status === 'done' && sim.stale ? ' (outdated)' : ''}
+            </p>
+            <p
+              className={`text-2xl font-bold ${
+                simFinal !== null
+                  ? ratingColorClass(simFinal)
+                  : 'text-slate-300 dark:text-slate-600'
+              }`}
+            >
+              {simFinal !== null ? simFinal : '?'}
+            </p>
+          </div>
+        </div>
+
+        {sim.status === 'running' ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                simulating...
+              </span>
+              <span>
+                {sim.done}/{sim.total}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${(sim.done / sim.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={runSimulation}
+            className="w-full py-2 text-sm font-medium rounded-lg border transition-colors bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+          >
+            {sim.status === 'done'
+              ? sim.stale
+                ? 'Re-simulate (new contests since last run)'
+                : 'Re-simulate'
+              : 'Simulate rating as if virtuals were rated'}
+          </button>
+        )}
+        {sim.status === 'error' && (
+          <p className="text-xs text-red-500 dark:text-red-400">{sim.message}</p>
+        )}
+        {simPoints.length > 1 && <Sparkline points={simPoints} />}
       </div>
 
       {parts.slice(0, visible).map(p => {

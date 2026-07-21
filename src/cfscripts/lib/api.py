@@ -95,3 +95,14 @@ def get_results(url, cache_type=CACHE_NONE):
         sleep(delay)
 
     raise ApiError("Failed after {} retries for {}: {}".format(MAX_RETRIES, url, last_error))
+
+
+def invalidate(url, cache_type=CACHE_LONG):
+    """Drop a cached response so the next call refetches it."""
+    try:
+        if cache_type == CACHE_SHORT:
+            _short_session.cache.delete(urls=[url])
+        elif cache_type == CACHE_LONG:
+            _long_session.cache.delete(urls=[url])
+    except Exception:
+        pass

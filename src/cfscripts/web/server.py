@@ -7,6 +7,7 @@ from cfscripts.core.scraper import get_problem_html
 from cfscripts.lib.api import CACHE_NONE, ApiError
 from cfscripts.lib.contests import get_participations
 from cfscripts.lib.performance import UserPerformanceCalculator
+from cfscripts.lib.rating import get_rating_changes_for_user
 
 app = FastAPI()
 
@@ -41,9 +42,16 @@ def pick_problem(handle: str, level: int):
 
 @app.get("/api/participations")
 def participations(handle: str):
-    """List contests the user participated in (contestant/virtual/out-of-comp), newest first."""
+    """List contests the user participated in (contestant/virtual/out-of-comp), newest first.
+
+    Also returns the user's current official rating (last rating change),
+    so the client can contrast it with the simulated rating.
+    """
     try:
-        return {"participations": get_participations(handle)}
+        parts = get_participations(handle)
+        changes = get_rating_changes_for_user(handle)
+        official = changes[-1]["newRating"] if changes else None
+        return {"participations": parts, "official_rating": official}
     except ApiError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
