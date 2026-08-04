@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, AlertCircle, TrendingUp } from 'lucide-react';
 import { API_BASE_URL } from './api';
+import { ratingColorClass, deltaColorClass } from './colors';
 
 type Participation = {
   contest_id: number;
@@ -46,25 +47,6 @@ type RowState =
 const PAGE_SIZE = 20;
 const CONCURRENCY = 3;
 
-// Codeforces rating tier colors (mirrors lib/colors.py)
-function ratingColorClass(v: number | string): string {
-  if (typeof v !== 'number') return 'text-slate-500 dark:text-slate-400';
-  if (v < 1200) return 'text-slate-500 dark:text-slate-400';
-  if (v < 1400) return 'text-green-600 dark:text-green-400';
-  if (v < 1600) return 'text-cyan-600 dark:text-cyan-400';
-  if (v < 1900) return 'text-blue-600 dark:text-blue-400';
-  if (v < 2100) return 'text-fuchsia-600 dark:text-fuchsia-400';
-  if (v < 2400) return 'text-amber-600 dark:text-amber-400';
-  return 'text-red-600 dark:text-red-400';
-}
-
-function deltaColorClass(d: number | string): string {
-  if (typeof d !== 'number') return 'text-slate-500 dark:text-slate-400';
-  if (d > 0) return 'text-green-600 dark:text-green-400';
-  if (d < 0) return 'text-red-600 dark:text-red-400';
-  return 'text-slate-500 dark:text-slate-400';
-}
-
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   contestant: {
     label: 'official',
@@ -101,7 +83,7 @@ const simResultKey = (handle: string) => `whatifResult:v1:${handle}`;
 const simStepKey = (handle: string, p: Participation, ratingIn: number) =>
   `whatifStep:v1:${handle}:${p.contest_id}:${p.start_time}:${ratingIn}`;
 
-function Sparkline({ points }: { points: SimPoint[] }) {
+export function Sparkline({ points }: { points: { newRating: number; start_time: number }[] }) {
   if (points.length < 2) return null;
   const values = points.map(p => p.newRating);
   const min = Math.min(...values);

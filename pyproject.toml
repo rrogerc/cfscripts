@@ -15,6 +15,7 @@ dependencies = [
     "uvicorn",
     "beautifulsoup4",
     "cloudscraper",
+    "psycopg[binary]",
 ]
 
 [project.scripts]
