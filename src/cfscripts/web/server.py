@@ -186,7 +186,7 @@ def ranked_state(handle: str):
 
 @app.post("/api/ranked/queue")
 def ranked_queue(handle: str):
-    """Start a match: pick a problem near elo, 40-minute clock starts now.
+    """Start a match: pick a problem near elo, 30-minute clock starts now.
 
     The problem statement is returned in the same response — the match is
     live the moment the player sees it, so there is no free re-rolling.

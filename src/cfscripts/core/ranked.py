@@ -1,6 +1,6 @@
 """Ranked queue game logic: elo math, problem selection, match resolution.
 
-A "match" is 40 minutes against one unsolved problem picked near the player's
+A "match" is 30 minutes against one unsolved problem picked near the player's
 queue elo. The problem is treated as an opponent whose rating is its CF
 problem rating; standard elo updates give the asymmetric win/loss deltas.
 
@@ -17,7 +17,7 @@ from cfscripts.core.picker import _fetch_inputs
 from cfscripts.lib.api import CACHE_NONE
 
 K_FACTOR = 32
-MATCH_SECONDS = 40 * 60
+MATCH_SECONDS = 30 * 60
 DEFAULT_SEED_ELO = 1500
 
 # Target rating is sampled from elo + one of these offsets (CF ratings come in
