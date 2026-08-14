@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { ClipboardCopy, Check, GraduationCap, Code } from 'lucide-react';
+import { ClipboardCopy, Check, GraduationCap, Code, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
 
 declare global {
@@ -138,6 +138,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   const [copied, setCopied] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
   const [templateCopied, setTemplateCopied] = useState(false);
+  const [nvimCopied, setNvimCopied] = useState(false);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -196,6 +197,12 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     setTimeout(() => setTemplateCopied(false), 2000);
   };
 
+  const copyNvim = async () => {
+    await navigator.clipboard.writeText(`nvim "${problem.name}.cpp"`);
+    setNvimCopied(true);
+    setTimeout(() => setNvimCopied(false), 2000);
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Problem Header Details */}
@@ -224,7 +231,16 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {problem.name && (
+              <button
+                onClick={copyNvim}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                {nvimCopied ? <Check className="w-4 h-4 text-green-500" /> : <Terminal className="w-4 h-4" />}
+                {nvimCopied ? 'Copied' : 'nvim'}
+              </button>
+            )}
             <button
               onClick={copyMarkdown}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"

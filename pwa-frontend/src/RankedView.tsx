@@ -287,7 +287,11 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
         {html ? (
           <ProblemContent
             html={html}
-            problem={{ contestId: activeMatch.contest_id, index: activeMatch.problem_index }}
+            problem={{
+              contestId: activeMatch.contest_id,
+              index: activeMatch.problem_index,
+              name: activeMatch.problem_name,
+            }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400 space-y-3 animate-pulse">
