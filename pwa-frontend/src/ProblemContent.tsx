@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import { ClipboardCopy, Check, GraduationCap, Code, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
+import { ratingColorClass } from './colors';
 
 declare global {
   interface Window {
@@ -205,33 +206,32 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      {/* Problem Header Details */}
-      <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-            <a
-              href={`https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-            >
-              {problem.contestId}{problem.index}
-            </a>
-            <a
-              href={`https://codeforces.com/contest/${problem.contestId}/problem/${problem.index}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-            >
-              contest
-            </a>
-            {problem.rating != null && (
-              <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded border border-blue-200 dark:border-blue-800/50">
-                Rating: {problem.rating}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+      {/* Problem Header Details — centered: badge row, then action row */}
+      <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-center gap-2 flex-wrap text-sm font-medium text-slate-500 dark:text-slate-400">
+          <a
+            href={`https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            {problem.contestId}{problem.index}
+          </a>
+          <a
+            href={`https://codeforces.com/contest/${problem.contestId}/problem/${problem.index}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            contest
+          </a>
+          {problem.rating != null && (
+            <span className={`px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-bold ${ratingColorClass(problem.rating)}`}>
+              {problem.rating}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-center gap-2 flex-wrap">
             {problem.name && (
               <button
                 onClick={copyNvim}
@@ -262,7 +262,6 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
               {coachCopied ? <Check className="w-4 h-4 text-green-500" /> : <GraduationCap className="w-4 h-4" />}
               {coachCopied ? 'Copied' : 'Coach'}
             </button>
-          </div>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
 import { API_BASE_URL } from './api';
+import { ratingColorClass } from './colors';
 import { ProblemContent, type Problem } from './ProblemContent';
 import { RatingView } from './RatingView';
 import { RankedView } from './RankedView';
@@ -17,6 +18,10 @@ type PrefetchEntry = {
 };
 
 const PREFETCH_STALE_MS = 60_000;
+
+const MIN_LEVEL = 8;
+const MAX_LEVEL = 32;
+const LEVELS = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) => i + MIN_LEVEL);
 
 function App() {
   const [level, setLevel] = useState<number>(() => {
@@ -61,6 +66,12 @@ function App() {
 
   const cycleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : prev === 'dark' ? 'auto' : 'light');
+  };
+
+  const changeLevel = (v: number) => {
+    const clamped = Math.min(MAX_LEVEL, Math.max(MIN_LEVEL, v));
+    setLevel(clamped);
+    localStorage.setItem('level', String(clamped));
   };
 
   const requestPick = async (lvl: number): Promise<PickData> => {
@@ -182,34 +193,6 @@ function App() {
                 : <Monitor className="w-5 h-5" />}
             </button>
 
-            {tab === 'pick' && (
-              <>
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
-                  <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
-                  <select
-                    value={level}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setLevel(v);
-                      localStorage.setItem('level', String(v));
-                    }}
-                    className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
-                  >
-                    {Array.from({ length: 25 }, (_, i) => i + 8).map(l => (
-                      <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={fetchProblem}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
-                >
-                  <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Pick</span>
-                </button>
-              </>
-            )}
           </div>
         </div>
       </header>
@@ -232,12 +215,83 @@ function App() {
               </button>
             </div>
           ) : html && problem ? (
-            <ProblemContent html={html} problem={problem} />
+            <div>
+              {/* Compact re-pick strip — centered, above the statement */}
+              <div className="flex items-center justify-center gap-3 mb-5">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
+                  <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
+                  <select
+                    value={level}
+                    onChange={(e) => changeLevel(Number(e.target.value))}
+                    className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
+                  >
+                    {LEVELS.map(l => (
+                      <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={fetchProblem}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Pick again
+                </button>
+              </div>
+              <ProblemContent html={html} problem={problem} />
+            </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4">
-              <BookOpen className="w-16 h-16 opacity-20" />
-              <p className="text-lg font-medium text-center text-slate-600 dark:text-slate-400">Tap Pick to find a problem.</p>
-              <p className="text-sm text-center max-w-sm opacity-60">Level {level} corresponds to rating {level * 100}. Adjust the level in the top right.</p>
+            <div className="flex-1 flex flex-col items-center justify-center py-8">
+              <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-8 text-center space-y-7 shadow-sm">
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    Difficulty
+                  </p>
+                  <div className="flex items-center justify-center gap-5">
+                    <button
+                      onClick={() => changeLevel(level - 1)}
+                      disabled={level <= MIN_LEVEL}
+                      className="w-11 h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      aria-label="Decrease level"
+                    >
+                      <Minus className="w-5 h-5" />
+                    </button>
+                    {/* The big number is a native select — tap it to jump levels */}
+                    <select
+                      value={level}
+                      onChange={(e) => changeLevel(Number(e.target.value))}
+                      className="appearance-none bg-transparent text-center text-6xl font-extrabold tabular-nums text-slate-900 dark:text-white outline-none cursor-pointer w-24"
+                      aria-label="Level"
+                    >
+                      {LEVELS.map(l => (
+                        <option key={l} value={l} className="bg-white dark:bg-slate-800 text-base font-normal text-slate-900 dark:text-white">{l}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => changeLevel(level + 1)}
+                      disabled={level >= MAX_LEVEL}
+                      className="w-11 h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      aria-label="Increase level"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className={`text-sm font-bold ${ratingColorClass(level * 100)}`}>
+                    {level * 100} rated
+                  </p>
+                </div>
+                <button
+                  onClick={fetchProblem}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:from-blue-700 active:to-indigo-700 text-white font-semibold rounded-xl transition-all"
+                >
+                  <BookOpen className="w-5 h-5" />
+                  Pick a problem
+                </button>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  The newest unsolved Div. 2 problem at this rating.
+                </p>
+              </div>
             </div>
           )}
         </div>
