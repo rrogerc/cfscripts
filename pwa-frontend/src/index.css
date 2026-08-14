@@ -6,16 +6,32 @@ body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-200;
 }
 
+/* Text-width setting (Settings → Text width). Applies on phones only:
+   the sm: breakpoint restores fixed padding, and desktop keeps 16px type.
+   Defaults match "wide"; App.tsx stamps data-width on <html>. */
+:root {
+  --content-pad: 0.625rem;
+  --statement-size: 0.9375rem;
+}
+:root[data-width='cozy'] {
+  --content-pad: 1rem;
+  --statement-size: 1rem;
+}
+:root[data-width='max'] {
+  --content-pad: 0.25rem;
+  --statement-size: 0.875rem;
+}
+
 .problem-statement {
   font-family: ui-sans-serif, system-ui, sans-serif;
   line-height: 1.6;
 }
 
-/* More characters per line on phones: slightly smaller statement type —
-   the inline MathJax SVGs scale down with the surrounding font-size. */
+/* More characters per line on phones: smaller statement type — the inline
+   MathJax SVGs scale down with the surrounding font-size. */
 @media (max-width: 640px) {
   .problem-statement {
-    font-size: 0.9375rem;
+    font-size: var(--statement-size);
   }
 }
 
@@ -94,4 +110,21 @@ body {
 
 mjx-container svg {
   display: inline;
+}
+
+/* Long equations scroll inside their own box instead of stretching the
+   page sideways. Inline math keeps its natural baseline — overflow on an
+   inline-block would move the baseline to its bottom edge — so
+   ProblemContent tags only the formulas that actually overflow with
+   .mjx-scroll after typesetting. */
+mjx-container[display='true'],
+mjx-container.mjx-scroll {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+mjx-container.mjx-scroll:not([display='true']) {
+  display: inline-block;
+  vertical-align: middle;
 }

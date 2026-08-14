@@ -145,16 +145,34 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 
     el.innerHTML = html;
 
+    // Formulas wider than the statement column get .mjx-scroll so they
+    // scroll in place instead of stretching the page (see index.css).
+    // Re-checked on resize / text-width setting changes via ResizeObserver.
+    const markOverflowingMath = () => {
+      el.querySelectorAll('mjx-container').forEach((c) => {
+        c.classList.remove('mjx-scroll');
+        if (c.getBoundingClientRect().width > el.clientWidth) {
+          c.classList.add('mjx-scroll');
+        }
+      });
+    };
+    let observer: ResizeObserver | undefined;
+
     if (window.MathJax) {
       if (window.MathJax.typesetClear) {
         window.MathJax.typesetClear([el]);
       }
       if (window.MathJax.typesetPromise) {
-        window.MathJax.typesetPromise([el]).catch((err: unknown) =>
-          console.error('MathJax error', err)
-        );
+        window.MathJax.typesetPromise([el])
+          .then(() => {
+            markOverflowingMath();
+            observer = new ResizeObserver(markOverflowingMath);
+            observer.observe(el);
+          })
+          .catch((err: unknown) => console.error('MathJax error', err));
       }
     }
+    return () => observer?.disconnect();
   }, [html]);
 
   const copyMarkdown = async () => {
