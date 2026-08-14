@@ -11,6 +11,14 @@ body {
   line-height: 1.6;
 }
 
+/* More characters per line on phones: slightly smaller statement type —
+   the inline MathJax SVGs scale down with the surrounding font-size. */
+@media (max-width: 640px) {
+  .problem-statement {
+    font-size: 0.9375rem;
+  }
+}
+
 .problem-statement .header {
   text-align: center;
   margin-bottom: 2rem;

@@ -244,7 +244,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
     return (
       <div className="pb-16">
         {/* Timer bar — sticks below the app header */}
-        <div className="sticky top-[calc(env(safe-area-inset-top)+4.75rem)] z-[5] -mx-4 px-4 py-2 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 mb-4">
+        <div className="sticky top-[calc(env(safe-area-inset-top)+4.75rem)] z-[5] -mx-2.5 px-2.5 sm:-mx-4 sm:px-4 py-2 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Swords className="w-4 h-4 text-blue-600 dark:text-blue-400" />

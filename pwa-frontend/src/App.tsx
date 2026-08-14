@@ -118,7 +118,7 @@ function App() {
 
       {/* Main Content Area — all views stay mounted so MathJax DOM, fetched
           rating rows, and the live match timer survive tab switches */}
-      <main className="flex-1 w-full max-w-2xl mx-auto p-4 md:p-6 lg:py-8 pb-16 flex flex-col">
+      <main className="flex-1 w-full max-w-2xl mx-auto px-2.5 py-4 sm:px-4 md:p-6 lg:py-8 pb-16 flex flex-col">
         <div className={tab === 'pick' ? 'flex-1 flex flex-col' : 'hidden'}>
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
