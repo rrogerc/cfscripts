@@ -76,7 +76,7 @@ function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50 font-sans selection:bg-blue-500/30 transition-colors duration-200">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 px-4 shadow-sm transition-colors duration-200">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-(--content-max) mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
             <BookOpen className="w-6 h-6" />
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">CF Picker</h1>
@@ -135,7 +135,7 @@ function App() {
 
       {/* Main Content Area — all views stay mounted so MathJax DOM, fetched
           rating rows, and the live match timer survive tab switches */}
-      <main className="flex-1 w-full max-w-2xl mx-auto px-(--content-pad) py-4 sm:px-4 md:p-6 lg:py-8 pb-16 flex flex-col">
+      <main className="flex-1 w-full max-w-(--content-max) mx-auto px-(--content-pad) py-4 sm:px-4 md:p-6 lg:py-8 pb-16 flex flex-col">
         <div className={tab === 'pick' ? 'flex-1 flex flex-col' : 'hidden'}>
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
@@ -210,10 +210,9 @@ function App() {
               ))}
             </div>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {textWidth === 'cozy' && 'Bigger text with roomier margins.'}
-              {textWidth === 'wide' && 'Balanced — slightly smaller text, trimmed margins.'}
-              {textWidth === 'max' && 'Edge-to-edge with the smallest text.'}
-              {' '}Affects phone screens.
+              {textWidth === 'cozy' && 'Narrow column; bigger text on phones.'}
+              {textWidth === 'wide' && 'Balanced column width (default).'}
+              {textWidth === 'max' && 'Widest column; edge-to-edge on phones.'}
             </p>
           </div>
         </div>
@@ -221,7 +220,7 @@ function App() {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] transition-colors duration-200">
-        <div className="max-w-2xl mx-auto flex">
+        <div className="max-w-(--content-max) mx-auto flex">
           <button
             onClick={() => setTab('pick')}
             className={`flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors ${

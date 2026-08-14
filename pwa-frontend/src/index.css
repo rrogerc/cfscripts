@@ -6,20 +6,24 @@ body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-200;
 }
 
-/* Text-width setting (Settings → Text width). Applies on phones only:
-   the sm: breakpoint restores fixed padding, and desktop keeps 16px type.
-   Defaults match "wide"; App.tsx stamps data-width on <html>. */
+/* Text-width setting (Settings → Text width). On phones it adjusts side
+   padding and statement type; on larger screens it widens the content
+   column (--content-max). Defaults match "wide"; App.tsx stamps
+   data-width on <html>. */
 :root {
   --content-pad: 0.625rem;
   --statement-size: 0.9375rem;
+  --content-max: 56rem;
 }
 :root[data-width='cozy'] {
   --content-pad: 1rem;
   --statement-size: 1rem;
+  --content-max: 42rem;
 }
 :root[data-width='max'] {
   --content-pad: 0.25rem;
   --statement-size: 0.875rem;
+  --content-max: 72rem;
 }
 
 .problem-statement {
