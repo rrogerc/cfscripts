@@ -302,6 +302,21 @@ export function RatingView({ handle, active }: { handle: string; active: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  // Prefetch shortly after launch even if the tab was never opened, so the
+  // view is already populated on first visit. The delay lets the pick
+  // prefetch's heavier Codeforces calls go out first; per-row perf results
+  // are immutable and cached in localStorage, so relaunches cost little.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!startedRef.current) {
+        startedRef.current = true;
+        loadList();
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch perf for visible rows that haven't been queued yet.
   useEffect(() => {
     if (!parts) return;

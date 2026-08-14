@@ -1,9 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X } from 'lucide-react';
 import { API_BASE_URL } from './api';
 import { ProblemContent, type Problem } from './ProblemContent';
 import { RatingView } from './RatingView';
 import { RankedView } from './RankedView';
+
+type PickData = { problem: Problem; html: string };
+
+// One in-flight or completed /api/pick response. data: undefined while the
+// request is in flight, null if it failed, otherwise ready to show.
+type PrefetchEntry = {
+  level: number;
+  promise: Promise<PickData | null>;
+  data?: PickData | null;
+  ts: number;
+};
+
+const PREFETCH_STALE_MS = 60_000;
 
 function App() {
   const [level, setLevel] = useState<number>(() => {
@@ -50,21 +63,89 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : prev === 'dark' ? 'auto' : 'light');
   };
 
+  const requestPick = async (lvl: number): Promise<PickData> => {
+    const response = await fetch(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.detail || `Error: ${response.statusText}`);
+    }
+    return response.json();
+  };
+
+  // Prefetch the pick so tapping the button renders instantly. Safe because
+  // /api/pick is deterministic (newest unsolved problem at the level), so the
+  // prefetched answer is exactly what a live fetch would return.
+  const prefetchRef = useRef<PrefetchEntry | null>(null);
+
+  const startPrefetch = (lvl: number) => {
+    const entry: PrefetchEntry = {
+      level: lvl,
+      promise: requestPick(lvl).catch(() => null),
+      ts: Date.now(),
+    };
+    entry.promise.then(d => { entry.data = d; });
+    prefetchRef.current = entry;
+  };
+
+  // Warm on launch; re-warm when the level changes (debounced in case of
+  // rapid cycling through the selector).
+  useEffect(() => {
+    const t = setTimeout(() => startPrefetch(level), prefetchRef.current ? 300 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level]);
+
+  // Refresh a stale prefetch when the app regains visibility — a problem
+  // solved on Codeforces while away must not be re-served from the cache.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden) return;
+      const entry = prefetchRef.current;
+      if (!entry || entry.level !== level || Date.now() - entry.ts > PREFETCH_STALE_MS) {
+        startPrefetch(level);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level]);
+
   const fetchProblem = async () => {
-    setLoading(true);
     setError('');
+
+    const entry = prefetchRef.current;
+    if (entry && entry.level === level) {
+      if (entry.data) {
+        // Prefetch already resolved — show it without any loading flash.
+        setProblem(entry.data.problem);
+        setHtml(entry.data.html);
+        setLoading(false);
+        return;
+      }
+      if (entry.data === undefined) {
+        // Still in flight — wait for it instead of firing a duplicate.
+        setLoading(true);
+        setProblem(null);
+        setHtml('');
+        const data = await entry.promise;
+        if (data) {
+          setProblem(data.problem);
+          setHtml(data.html);
+          setLoading(false);
+          return;
+        }
+        // Prefetch failed — fall through and refetch so the real error surfaces.
+      }
+    }
+
+    setLoading(true);
     setProblem(null);
     setHtml('');
-
     try {
-      const response = await fetch(`${API_BASE_URL}/api/pick?handle=${handle}&level=${level}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.detail || `Error: ${response.statusText}`);
-      }
-      const data = await response.json();
+      const data = await requestPick(level);
       setProblem(data.problem);
       setHtml(data.html);
+      prefetchRef.current = { level, promise: Promise.resolve(data), data, ts: Date.now() };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch problem. Make sure backend is running.');
     } finally {
