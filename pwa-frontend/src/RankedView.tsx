@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Swords, Flag, RefreshCw, AlertCircle, Trophy, Skull } from 'lucide-react';
-import { API_BASE_URL } from './api';
+import { API_BASE_URL, fetchJson } from './api';
+import { MatchReview } from './MatchReview';
 import { ProblemContent } from './ProblemContent';
 import { Sparkline } from './RatingView';
 import { ratingColorClass, deltaColorClass } from './colors';
@@ -14,7 +15,7 @@ type ActiveMatch = {
   deadline_ts: number;
 };
 
-type MatchRow = {
+export type MatchRow = {
   id: number;
   contest_id: number;
   problem_index: string;
@@ -47,15 +48,6 @@ function fmtClock(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-async function fetchJson(url: string, init?: RequestInit) {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `Error: ${res.statusText}`);
-  }
-  return res.json();
-}
-
 const RESULT_STYLE: Record<MatchRow['result'], { label: string; banner: string; cls: string }> = {
   win: { label: 'W', banner: 'VICTORY', cls: 'text-green-600 dark:text-green-400' },
   loss: { label: 'L', banner: 'DEFEAT', cls: 'text-red-600 dark:text-red-400' },
@@ -71,6 +63,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
   const [busy, setBusy] = useState(false);
   const [confirmSurrender, setConfirmSurrender] = useState(false);
   const [now, setNow] = useState(nowSec());
+  const [reviewRow, setReviewRow] = useState<MatchRow | null>(null);
 
   const loadedRef = useRef(false);
   const activeIdRef = useRef<number | null>(null);
@@ -234,6 +227,17 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
           Try Again
         </button>
       </div>
+    );
+  }
+
+  // ---- Reviewing a finished match ----
+  if (reviewRow) {
+    return (
+      <MatchReview
+        handle={handle}
+        row={reviewRow}
+        onBack={() => setReviewRow(null)}
+      />
     );
   }
 
@@ -415,7 +419,11 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
           {history.map(r => {
             const delta = Math.round(r.elo_after) - Math.round(r.elo_before);
             return (
-              <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+              <button
+                key={r.id}
+                onClick={() => setReviewRow(r)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+              >
                 <span
                   className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold ${
                     r.result === 'win'
@@ -426,14 +434,9 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
                   {RESULT_STYLE[r.result].label}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <a
-                    href={`https://codeforces.com/problemset/problem/${r.contest_id}/${r.problem_index}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm font-medium text-slate-800 dark:text-slate-200 truncate hover:underline"
-                  >
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">
                     {r.contest_id}{r.problem_index} · {r.problem_name}
-                  </a>
+                  </p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">
                     {new Date(r.start_ts * 1000).toLocaleDateString()}
                     {r.result === 'surrender' && ' · surrendered'}
@@ -446,7 +449,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
                 <span className={`text-sm font-bold w-10 text-right ${deltaColorClass(delta)}`}>
                   {delta >= 0 ? '+' : ''}{delta}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>

@@ -12,13 +12,18 @@ from cfscripts.lib.contests import get_participations
 from cfscripts.lib.performance import UserPerformanceCalculator
 from cfscripts.lib.rating import get_rating_changes_for_user
 from cfscripts.lib.submissions import get_submissions
-from cfscripts.web import db
+from cfscripts.web import db, solutions
 
 app = FastAPI()
 
 
 @app.exception_handler(ApiError)
 def _api_error(request, exc):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(solutions.SolutionUnavailable)
+def _solution_unavailable(request, exc):
     return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
@@ -230,6 +235,84 @@ def ranked_problem(handle: str):
         "match_id": active["id"],
         "html": get_problem_html(active["contest_id"], active["problem_index"]),
     }
+
+
+# A generation that has held the lock this long is presumed dead (crashed
+# instance, dropped request) and the next poll takes it over.
+SOLUTION_STALE_SECONDS = 180
+
+
+def _solution_payload(row):
+    if row is None:
+        return None
+    return {
+        "status": row["status"],
+        "content_md": row["content_md"],
+        "model": row["model"],
+    }
+
+
+def _finished_match(conn, handle, match_id):
+    """The handle's own resolved match row — the auth gate for review and
+    solution generation, so strangers can't burn tokens on arbitrary problems."""
+    row = db.fetch_match(conn, handle, match_id)
+    if row is None or row["result"] is None:
+        raise HTTPException(
+            status_code=404, detail=f"No finished match {match_id} for {handle}"
+        )
+    return row
+
+
+@app.get("/api/ranked/review")
+def ranked_review(handle: str, match_id: int):
+    """Statement + any cached editorial for a finished match."""
+    with db.connect() as conn:
+        row = _finished_match(conn, handle, match_id)
+        sol = db.get_solution(conn, row["contest_id"], row["problem_index"])
+    return {
+        "match": _history_payload(row),
+        "html": get_problem_html(row["contest_id"], row["problem_index"]),
+        "solution": _solution_payload(sol),
+    }
+
+
+@app.post("/api/ranked/solution")
+def ranked_solution(handle: str, match_id: int):
+    """Return the editorial for a finished match, generating it on first ask.
+
+    Editorials are cached per problem (not per user), so each problem costs
+    one model call ever. While another request is generating, this returns
+    the pending row — the client polls until it flips to done.
+    """
+    with db.connect() as conn:
+        row = _finished_match(conn, handle, match_id)
+        contest_id, index = row["contest_id"], row["problem_index"]
+        now = int(time())
+        claimed = db.claim_solution(
+            conn, contest_id, index, now, now - SOLUTION_STALE_SECONDS
+        )
+        if claimed is None:
+            return {"solution": _solution_payload(
+                db.get_solution(conn, contest_id, index)
+            )}
+
+    # We hold the lock. Generate with no connection open — a model call can
+    # take a minute, longer than a pooled connection should sit idle.
+    try:
+        content, source_url, model = solutions.generate(
+            contest_id, index, row["problem_name"]
+        )
+    except Exception:
+        with db.connect() as conn:
+            db.release_solution(conn, contest_id, index)
+        raise
+
+    with db.connect() as conn:
+        sol = db.finish_solution(
+            conn, contest_id, index, content, model,
+            source_url, int(time()),
+        )
+    return {"solution": _solution_payload(sol)}
 
 
 @app.post("/api/ranked/surrender")

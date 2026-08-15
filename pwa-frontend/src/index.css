@@ -104,6 +104,39 @@ body {
   list-style-type: disc;
 }
 
+/* LLM editorial (markdown via marked) — mirror the statement's look for
+   elements CF HTML never emits (bare headings, inline code). */
+.solution-content h2 {
+  font-size: 1.125rem;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  @apply text-slate-800 dark:text-slate-200;
+}
+
+.solution-content h3 {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  @apply text-slate-800 dark:text-slate-200;
+}
+
+.solution-content code {
+  @apply bg-slate-200 dark:bg-slate-800;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85em;
+}
+
+.solution-content pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
 .tex-font-style-it {
   font-style: italic;
 }
