@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
-import { ClipboardCopy, Check, GraduationCap, Code, Terminal } from 'lucide-react';
+import { ClipboardCopy, Check, GraduationCap, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
 import { ratingColorClass } from './colors';
 
@@ -138,7 +138,6 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   const contentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
-  const [templateCopied, setTemplateCopied] = useState(false);
   const [nvimCopied, setNvimCopied] = useState(false);
 
   useEffect(() => {
@@ -190,12 +189,6 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     await navigator.clipboard.writeText(prompt);
     setCoachCopied(true);
     setTimeout(() => setCoachCopied(false), 2000);
-  };
-
-  const copyTemplate = async () => {
-    await navigator.clipboard.writeText(CPP_TEMPLATE);
-    setTemplateCopied(true);
-    setTimeout(() => setTemplateCopied(false), 2000);
   };
 
   // Seed the file with the template (only when it doesn't exist yet — never
@@ -251,13 +244,6 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
             >
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
               {copied ? 'Copied' : 'Problem'}
-            </button>
-            <button
-              onClick={copyTemplate}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-            >
-              {templateCopied ? <Check className="w-4 h-4 text-green-500" /> : <Code className="w-4 h-4" />}
-              {templateCopied ? 'Copied' : 'Template'}
             </button>
             <button
               onClick={copyCoachPrompt}
