@@ -198,8 +198,12 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     setTimeout(() => setTemplateCopied(false), 2000);
   };
 
+  // Seed the file with the template (only when it doesn't exist yet — never
+  // clobber in-progress work), then open it. One paste starts the problem.
   const copyNvim = async () => {
-    await navigator.clipboard.writeText(`nvim "${problem.name}.cpp"`);
+    const file = `${problem.name}.cpp`;
+    const cmd = `[ -s "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
+    await navigator.clipboard.writeText(cmd);
     setNvimCopied(true);
     setTimeout(() => setNvimCopied(false), 2000);
   };
