@@ -97,6 +97,48 @@ def _get_blog_text(url):
     return content.get_text('\n')
 
 
+def get_input_spec_paragraphs(statement_html):
+    """The Input section's paragraphs as plain text, in order, or None.
+
+    Paragraph boundaries matter: the line map links each sample-input line
+    to one of these paragraphs by its 1-based position, and the frontend
+    resolves the same position against the rendered DOM — so both sides
+    must count direct <p> children of .input-specification and nothing else.
+    """
+    soup = BeautifulSoup(statement_html, 'html.parser')
+    spec = soup.find('div', class_='input-specification')
+    if spec is None:
+        return None
+    paras = [html_to_text(str(p)) for p in spec.find_all('p', recursive=False)]
+    return paras if any(paras) else None
+
+
+def get_sample_input_lines(statement_html):
+    """Lines of the first sample input block, or None.
+
+    Handles both statement styles: modern per-line <div>s inside the <pre>
+    and older raw text with newlines. The frontend splits lines the same
+    way (trailing blanks dropped, interior blanks kept) so 1-based line
+    numbers agree between the prompt and the DOM.
+    """
+    soup = BeautifulSoup(statement_html, 'html.parser')
+    sample = soup.find('div', class_='sample-test')
+    pre = sample.find('div', class_='input') if sample else None
+    pre = pre.find('pre') if pre else None
+    if pre is None:
+        return None
+    line_divs = pre.find_all('div', recursive=False)
+    if line_divs:
+        lines = [d.get_text().rstrip() for d in line_divs]
+    else:
+        for br in pre.find_all('br'):
+            br.replace_with('\n')
+        lines = [ln.rstrip() for ln in pre.get_text().split('\n')]
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines or None
+
+
 def html_to_text(statement_html):
     """Flatten statement HTML to plain text for an LLM prompt.
 

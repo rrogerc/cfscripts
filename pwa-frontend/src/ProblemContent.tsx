@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import { ClipboardCopy, Check, GraduationCap, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
+import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 
 declare global {
@@ -18,6 +19,13 @@ export type Problem = {
   rating?: number;
   name?: string;
 };
+
+// Sample-input line map: which Input-spec paragraph describes each line of
+// the first sample, plus a concrete value gloss ("n = 5 (array length)").
+// Positions are 1-based and were computed against the same statement HTML,
+// so they resolve directly against the rendered DOM.
+type LinemapLine = { line: number; para: number; text: string };
+type Linemap = { lines: LinemapLine[]; para_count: number };
 
 // textContent collapses block boundaries — walk the tree and emit \n
 // for each <div>/<p>/<li>/<br> so CF's per-line sample I/O divs and
@@ -175,6 +183,120 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     }
     return () => observer?.disconnect();
   }, [html]);
+
+  // Kick off the line map as soon as the statement is shown (not on hover):
+  // cached problems come back instantly, first-time problems finish while
+  // the opening paragraphs are being read. Failures just mean no hover
+  // annotations — the statement itself is untouched.
+  const [linemap, setLinemap] = useState<Linemap | null>(null);
+  useEffect(() => {
+    setLinemap(null);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let polls = 0;
+    const load = async () => {
+      try {
+        const res = await fetchJson(
+          `${API_BASE_URL}/api/linemap?contest_id=${problem.contestId}&index=${problem.index}`,
+          { method: 'POST' },
+        );
+        if (cancelled) return;
+        const lm = res.linemap;
+        if (lm?.status === 'done' && lm.data) {
+          setLinemap(lm.data);
+        } else if (lm?.status === 'pending' && polls++ < 8) {
+          // Another client holds the generation lock — poll until it lands.
+          timer = setTimeout(load, 4000);
+        }
+      } catch {
+        /* optional decoration; stay silent */
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [problem.contestId, problem.index]);
+
+  // Decorate the DOM once both the statement and the map are in: hovering a
+  // sample-input line highlights the Input-spec paragraph that defines it
+  // (and vice versa) and reveals the line's value gloss.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !linemap?.lines?.length) return;
+    const spec = el.querySelector('.input-specification');
+    const pre = el.querySelector<HTMLElement>('.sample-test .input pre');
+    if (!spec || !pre) return;
+
+    const paras = Array.from(spec.children).filter(
+      (c): c is HTMLElement => c.tagName === 'P',
+    );
+    // The map was built against this same HTML; a paragraph-count mismatch
+    // means the assumption broke somewhere — bail rather than mislabel.
+    if (paras.length !== linemap.para_count) return;
+
+    // Line elements: modern statements already have one <div> per line;
+    // older raw-text <pre>s get wrapped the same way the server counted
+    // them (trailing blanks dropped, interior blanks kept).
+    let lineEls = Array.from(pre.children).filter(
+      (c): c is HTMLElement => c.tagName === 'DIV',
+    );
+    if (!lineEls.length) {
+      // textContent drops <br>s (old statements delimit lines with them) —
+      // turn them into newlines first, as the server did when counting.
+      pre.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+      const lines = (pre.textContent ?? '').split('\n').map((l) => l.trimEnd());
+      while (lines.length && !lines[lines.length - 1]) lines.pop();
+      pre.textContent = '';
+      lineEls = lines.map((l) => {
+        const d = document.createElement('div');
+        d.textContent = l || ' ';
+        pre.appendChild(d);
+        return d;
+      });
+    }
+
+    const byPara = new Map<number, HTMLElement[]>();
+    const cleanups: (() => void)[] = [];
+    const link = (hovered: HTMLElement, lines: HTMLElement[], para: HTMLElement) => {
+      const on = () => {
+        lines.forEach((l) => l.classList.add('cf-line-active'));
+        para.classList.add('cf-spec-active');
+      };
+      const off = () => {
+        lines.forEach((l) => l.classList.remove('cf-line-active'));
+        para.classList.remove('cf-spec-active');
+      };
+      hovered.addEventListener('mouseenter', on);
+      hovered.addEventListener('mouseleave', off);
+      cleanups.push(() => {
+        off();
+        hovered.removeEventListener('mouseenter', on);
+        hovered.removeEventListener('mouseleave', off);
+      });
+    };
+
+    for (const m of linemap.lines) {
+      const lineEl = lineEls[m.line - 1];
+      const para = paras[m.para - 1];
+      if (!lineEl || !para) continue;
+      lineEl.classList.add('cf-line-mapped');
+      const gloss = document.createElement('span');
+      gloss.className = 'cf-line-gloss';
+      gloss.textContent = m.text;
+      lineEl.appendChild(gloss);
+      cleanups.push(() => {
+        lineEl.classList.remove('cf-line-mapped');
+        gloss.remove();
+      });
+      link(lineEl, [lineEl], para);
+      byPara.set(m.para, [...(byPara.get(m.para) ?? []), lineEl]);
+    }
+    byPara.forEach((lines, p) => link(paras[p - 1], lines, paras[p - 1]));
+
+    return () => cleanups.forEach((fn) => fn());
+  }, [html, linemap]);
 
   const copyMarkdown = async () => {
     const md = htmlToMarkdown(html, problem);

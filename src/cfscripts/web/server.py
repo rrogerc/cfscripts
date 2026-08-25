@@ -1,3 +1,4 @@
+import json
 from time import time
 from typing import Optional
 
@@ -313,6 +314,53 @@ def ranked_solution(handle: str, match_id: int):
             source_url, int(time()),
         )
     return {"solution": _solution_payload(sol)}
+
+
+def _linemap_payload(row):
+    if row is None:
+        return None
+    out = {"status": row["status"]}
+    if row["status"] == "done" and row["content_json"]:
+        out["data"] = json.loads(row["content_json"])
+    return out
+
+
+@app.post("/api/linemap")
+def linemap(contest_id: int, index: str):
+    """Sample-input line map for hover highlighting, generating on first ask.
+
+    Cached per problem with the same pending-lock pattern as editorials.
+    Unlike editorials there is no match row to gate on — but the cache caps
+    exposure at one flash call per problem, and a bogus problem id fails at
+    the statement scrape before any model call.
+    """
+    with db.connect() as conn:
+        row = db.get_linemap(conn, contest_id, index)
+        if row is not None and row["status"] == "done":
+            return {"linemap": _linemap_payload(row)}
+        now = int(time())
+        claimed = db.claim_linemap(
+            conn, contest_id, index, now, now - SOLUTION_STALE_SECONDS
+        )
+        if claimed is None:
+            return {"linemap": _linemap_payload(
+                db.get_linemap(conn, contest_id, index)
+            )}
+
+    # Lock held; generate with no connection open (same reasoning as
+    # editorials — the model call outlives a healthy pooled connection).
+    try:
+        data, model = solutions.generate_linemap(contest_id, index)
+    except Exception:
+        with db.connect() as conn:
+            db.release_linemap(conn, contest_id, index)
+        raise
+
+    with db.connect() as conn:
+        row = db.finish_linemap(
+            conn, contest_id, index, json.dumps(data), model, int(time())
+        )
+    return {"linemap": _linemap_payload(row)}
 
 
 @app.post("/api/ranked/surrender")
