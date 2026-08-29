@@ -190,7 +190,14 @@ body {
   border-radius: 0.1875rem;
   padding: 0 0.125rem;
   margin: 0 -0.125rem;
+  cursor: pointer;
   transition: background-color 120ms;
+}
+
+/* Clicking a variable pins its highlight so you can scroll to the mentions
+   it lit up without the highlight dying under the pointer. */
+.problem-statement .cf-tex {
+  cursor: pointer;
 }
 
 /* A fingertip needs more than a digit's width, so grow the tap target

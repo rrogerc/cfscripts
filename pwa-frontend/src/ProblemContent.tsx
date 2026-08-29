@@ -161,19 +161,33 @@ function splitIntoColumns(host: HTMLElement): HTMLElement[] {
   return [main, side];
 }
 
-/** The variable a TeX span refers to, or '' if it isn't a bare variable.
- * Subscripts collapse to the base name so $$$a_1$$$, $$$a_i$$$ and $$$a$$$
- * all highlight together. Anything more complex — a whole constraint like
- * 1 \le n \le 10^5, or display math — is deliberately not an anchor. */
+/** The variable a TeX span refers to when the span is nothing but that
+ * variable, else ''. Subscripts collapse to the base name so $$$a_1$$$,
+ * $$$a_i$$$ and $$$a$$$ all belong together. */
 function texBase(tex: string): string {
   const m = /^\\?([A-Za-z]+)(?:_\{?[A-Za-z0-9]+\}?)?$/.exec(tex.trim());
   return m ? m[1] : '';
 }
 
-/** Wrap each bare-variable $$$...$$$ occurrence in a tagged span, before
- * MathJax turns it into SVG. This is what makes "every mention of n" —
- * anywhere in the statement, legend included — addressable later. Complex
- * expressions are left completely untouched. */
+/** Every variable appearing anywhere inside a TeX expression. Statements
+ * introduce arrays as $$$a_1, a_2, \ldots, a_n$$$ far more often than as a
+ * bare $$$a$$$, so an expression has to count as a mention of each variable
+ * in it — otherwise the most interesting variables are unreachable. */
+function texVars(tex: string): string[] {
+  const bare = texBase(tex);
+  // Drop \le, \ldots, \cdot … so command names aren't read as variables.
+  const stripped = tex.replace(/\\[A-Za-z]+/g, ' ');
+  const ids = new Set<string>(bare ? [bare] : []);
+  for (const m of stripped.matchAll(/([A-Za-z])(?:_\{?[A-Za-z0-9]+\}?)?/g)) {
+    ids.add(m[1]);
+  }
+  return [...ids];
+}
+
+/** Wrap each $$$...$$$ occurrence in a span tagged with the variables it
+ * mentions, before MathJax turns it into SVG. This is what makes "every
+ * mention of n" — anywhere in the statement, legend included —
+ * addressable later, with no model call involved. */
 function wrapMathVariables(root: HTMLElement) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const texts: Text[] = [];
@@ -181,8 +195,11 @@ function wrapMathVariables(root: HTMLElement) {
 
   for (const node of texts) {
     if (!node.data.includes('$$$')) continue;
+    // Display math ($$$$…$$$$) would be mis-split by the inline pattern,
+    // and a standalone block formula is not a hover anchor anyway.
+    if (node.data.includes('$$$$')) continue;
     const matches = [...node.data.matchAll(/\$\$\$(.+?)\$\$\$/g)]
-      .filter((m) => texBase(m[1]));
+      .filter((m) => texVars(m[1]).length);
     if (!matches.length) continue;
 
     const frag = document.createDocumentFragment();
@@ -192,7 +209,9 @@ function wrapMathVariables(root: HTMLElement) {
       if (at > last) frag.append(node.data.slice(last, at));
       const span = document.createElement('span');
       span.className = 'cf-tex';
-      span.dataset.texBase = texBase(m[1]);
+      const base = texBase(m[1]);
+      if (base) span.dataset.texBase = base;
+      span.dataset.texVars = texVars(m[1]).join(' ');
       span.textContent = m[0]; // delimiters intact so MathJax still typesets
       frag.append(span);
       last = at + m[0].length;
@@ -506,8 +525,10 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     };
 
     const cleanups: (() => void)[] = [];
+    // ~= matches one entry of a space-separated list, so an expression
+    // counts as a mention of every variable inside it.
     const mentionsOf = (base: string) =>
-      Array.from(el.querySelectorAll(`.cf-tex[data-tex-base="${base}"]`));
+      Array.from(el.querySelectorAll(`.cf-tex[data-tex-vars~="${base}"]`));
     const tokensOf = (base: string) =>
       Array.from(el.querySelectorAll(`.cf-tok[data-tex-base="${base}"]`));
 
@@ -586,12 +607,15 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
       });
     };
 
-    // One delegated listener rather than per-element pairs: moving between a
-    // value and its line re-resolves the deepest target on every move, so
-    // nested targets can't leave a stale highlight behind.
-    const onOver = (ev: Event) => {
-      const at = ev.target as Element | null;
-      if (!at || !el.contains(at)) return clear();
+    /** Resolve the deepest meaningful target under `at` and light it up.
+     * Returns whether anything was lit. One delegated resolution rather than
+     * per-element listeners: moving between a value and its line re-resolves
+     * on every move, so nested targets can't strand a stale highlight. */
+    const show = (at: Element | null): boolean => {
+      if (!at || !el.contains(at)) {
+        clear();
+        return false;
+      }
 
       const lineEl = at.closest<HTMLElement>('.cf-line-mapped');
       const entry = lineEl ? info.get(lineEl) : undefined;
@@ -607,14 +631,24 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
           base ? [...mentionsOf(base), ...tokensOf(base)] : [],
         );
         if (tok.dataset.gloss) entry.gloss.textContent = tok.dataset.gloss;
-        return;
+        return true;
       }
-      if (entry) return paint([], [lineEl!, ...entry.clause], []);
+      if (entry) {
+        paint([], [lineEl!, ...entry.clause], []);
+        return true;
+      }
 
       const tex = at.closest<HTMLElement>('.cf-tex');
-      if (tex?.dataset.texBase) {
-        const base = tex.dataset.texBase;
-        return paint([tex], tokensOf(base), mentionsOf(base));
+      if (tex) {
+        // A bare variable speaks for itself; an expression only does when it
+        // mentions exactly one variable, else there is no telling which one
+        // the reader means.
+        const vars = (tex.dataset.texVars ?? '').split(' ').filter(Boolean);
+        const base = tex.dataset.texBase || (vars.length === 1 ? vars[0] : '');
+        if (base) {
+          paint([tex], tokensOf(base), mentionsOf(base));
+          return true;
+        }
       }
 
       const clause = at.closest('[data-clause]');
@@ -625,22 +659,48 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
           para.querySelectorAll(`[data-clause="${key}"]`),
         );
         const lines = siblings.flatMap((s) => linesOfClause.get(s) ?? []);
-        return paint([], [...siblings, ...new Set(lines)], []);
+        paint([], [...siblings, ...new Set(lines)], []);
+        return true;
       }
-      if (para) return paint([], [para, ...new Set(linesOfClause.get(para) ?? [])], []);
+      if (para) {
+        paint([], [para, ...new Set(linesOfClause.get(para) ?? [])], []);
+        return true;
+      }
       clear();
+      return false;
+    };
+
+    // Hover previews, a click pins. Pinning is what makes the statement-wide
+    // highlighting actually usable: a mention can easily be off-screen, and
+    // a hover-only highlight dies the moment you move the pointer away to go
+    // look at it. It is also the whole interaction on touch, where there is
+    // no hover and mouseleave never fires.
+    let pinned = false;
+    const onOver = (ev: Event) => {
+      if (!pinned) show(ev.target as Element);
+    };
+    const onClick = (ev: Event) => {
+      const at = ev.target as Element;
+      const wasPinned = pinned;
+      pinned = false;
+      // Clicking whatever is already lit releases it.
+      if (wasPinned && (at.closest('.cf-focus') || at.closest('.cf-hot'))) {
+        show(at);
+        return;
+      }
+      pinned = show(at);
+    };
+    const onLeave = () => {
+      if (!pinned) clear();
     };
 
     el.addEventListener('mouseover', onOver);
-    el.addEventListener('mouseleave', clear);
-    // Touch fires mouseover inconsistently and never fires mouseleave, so a
-    // tap is wired up explicitly: it resolves the same target and the
-    // highlight simply stays until the next tap resolves something else.
-    el.addEventListener('click', onOver);
+    el.addEventListener('mouseleave', onLeave);
+    el.addEventListener('click', onClick);
     cleanups.push(() => {
       el.removeEventListener('mouseover', onOver);
-      el.removeEventListener('mouseleave', clear);
-      el.removeEventListener('click', onOver);
+      el.removeEventListener('mouseleave', onLeave);
+      el.removeEventListener('click', onClick);
       clear();
     });
 
