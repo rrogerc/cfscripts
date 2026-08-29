@@ -111,6 +111,47 @@ function htmlToMarkdown(html: string, problem: Problem): string {
   return header + md;
 }
 
+// Sections that belong beside the statement rather than after it. The note
+// explains the samples, so it travels with them.
+const SIDE_SECTIONS = ['sample-tests', 'sample-test', 'note'];
+
+/** Split an injected statement into a reading column (legend + input/output
+ * spec) and a companion column (sample tests + note), returning the column
+ * elements.
+ *
+ * The wrappers are created unconditionally and CSS decides whether they sit
+ * side by side or stack — so switching layouts at the breakpoint never
+ * mutates the DOM, and the stacked order matches the original statement.
+ * Returns [] for statements with no sample section to pair against.
+ */
+function splitIntoColumns(host: HTMLElement): HTMLElement[] {
+  // The injected CF markup has its own .problem-statement root nested
+  // inside the host div, which carries the same class.
+  const root = host.querySelector(':scope > .problem-statement') ?? host;
+  const kids = Array.from(root.children).filter(
+    (c): c is HTMLElement => c instanceof HTMLElement,
+  );
+  const isSide = (c: HTMLElement) => SIDE_SECTIONS.some((s) => c.classList.contains(s));
+  if (!kids.some(isSide)) return [];
+
+  const cols = document.createElement('div');
+  cols.className = 'cf-cols';
+  const main = document.createElement('div');
+  main.className = 'cf-col-main';
+  const side = document.createElement('div');
+  side.className = 'cf-col-side';
+  cols.append(main, side);
+
+  // The header (title, limits) spans both columns, so it stays put.
+  const header = kids.find((c) => c.classList.contains('header')) ?? null;
+  for (const child of kids) {
+    if (child === header) continue;
+    (isSide(child) ? side : main).appendChild(child);
+  }
+  root.insertBefore(cols, header ? header.nextSibling : null);
+  return [main, side];
+}
+
 const COACH_PROMPT_INSTRUCTIONS = `I'm working on this competitive programming problem and want to think it
 through with you. Coach me — don't just hand over the solution:
 
@@ -153,14 +194,18 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     if (!el || !html) return;
 
     el.innerHTML = html;
+    const columns = splitIntoColumns(el);
 
-    // Formulas wider than the statement column get .mjx-scroll so they
+    // Formulas wider than the column they sit in get .mjx-scroll so they
     // scroll in place instead of stretching the page (see index.css).
-    // Re-checked on resize / text-width setting changes via ResizeObserver.
+    // Measured against the containing column, not the full width, or the
+    // two-column layout would under-detect overflow. Re-checked on resize /
+    // text-width changes / the column breakpoint via ResizeObserver.
     const markOverflowingMath = () => {
       el.querySelectorAll('mjx-container').forEach((c) => {
         c.classList.remove('mjx-scroll');
-        if (c.getBoundingClientRect().width > el.clientWidth) {
+        const box = c.closest('.cf-col-main, .cf-col-side') ?? el;
+        if (c.getBoundingClientRect().width > box.clientWidth) {
           c.classList.add('mjx-scroll');
         }
       });
@@ -176,7 +221,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
           .then(() => {
             markOverflowingMath();
             observer = new ResizeObserver(markOverflowingMath);
-            observer.observe(el);
+            // The columns break out past el's width, so their size can
+            // change while el's does not — observe both.
+            [el, ...columns].forEach((n) => observer!.observe(n));
           })
           .catch((err: unknown) => console.error('MathJax error', err));
       }
