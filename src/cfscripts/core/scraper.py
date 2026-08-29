@@ -97,6 +97,31 @@ def _get_blog_text(url):
     return content.get_text('\n')
 
 
+def normalize_text(text):
+    """Collapse whitespace — the shared normal form for text that has to
+    match between this scraper and the rendered DOM."""
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+# Clause boundaries: end of sentence, or the em/en dash Codeforces uses to
+# introduce a definition ("... contains $$$n$$$ ($$$1 \le n$$$) — the number
+# of rows"). The dash split is what isolates the phrase that actually says
+# what a variable means.
+_CLAUSE_BOUNDARY = re.compile(r'(?<=[.;:])\s+|\s+[—–-]\s+')
+
+
+def split_clauses(text):
+    """Split a spec paragraph into clause-sized units.
+
+    Deterministic and mirrored by the frontend, which splits the paragraph's
+    textContent the same way. The map carries each clause's text as well as
+    its index, so the client matches by string and degrades gracefully
+    instead of highlighting the wrong phrase if the two ever disagree.
+    """
+    parts = _CLAUSE_BOUNDARY.split(normalize_text(text))
+    return [c for c in (p.strip() for p in parts) if c]
+
+
 def get_input_spec_paragraphs(statement_html):
     """The Input section's paragraphs as plain text, in order, or None.
 
@@ -104,12 +129,14 @@ def get_input_spec_paragraphs(statement_html):
     to one of these paragraphs by its 1-based position, and the frontend
     resolves the same position against the rendered DOM — so both sides
     must count direct <p> children of .input-specification and nothing else.
+    Text comes from get_text() (not html_to_text) so it concatenates exactly
+    the way the DOM's textContent does, keeping clause splits in sync.
     """
     soup = BeautifulSoup(statement_html, 'html.parser')
     spec = soup.find('div', class_='input-specification')
     if spec is None:
         return None
-    paras = [html_to_text(str(p)) for p in spec.find_all('p', recursive=False)]
+    paras = [normalize_text(p.get_text()) for p in spec.find_all('p', recursive=False)]
     return paras if any(paras) else None
 
 

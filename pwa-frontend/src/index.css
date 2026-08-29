@@ -142,11 +142,13 @@ body {
    Input-spec paragraph that defines it (and vice versa) and reveals a
    value gloss on the line. Classes are attached by ProblemContent once
    the /api/linemap data arrives. */
+/* Block, not flex: a flex container drops the whitespace-only text between
+   items, which would run the sample's values together once each becomes its
+   own span. The gloss is positioned out of flow for the same reason — if it
+   displaced anything on hover, the value under the cursor would shift away
+   and the highlight would flicker. */
 .problem-statement .cf-line-mapped {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
+  position: relative;
   cursor: help;
   border-radius: 0.25rem;
   padding: 0 0.375rem;
@@ -154,33 +156,84 @@ body {
   transition: background-color 150ms;
 }
 
-.problem-statement .cf-line-active {
+/* Two intensities. cf-hot is what you are pointing at and the phrase that
+   defines it; cf-warm is the same variable mentioned elsewhere — quiet,
+   because a common variable can appear six or more times and lighting them
+   all equally would just look like noise. */
+.problem-statement .cf-line-mapped.cf-hot {
   @apply bg-amber-100 dark:bg-amber-400/10;
 }
 
 .problem-statement .cf-line-gloss {
   display: none;
+  position: absolute;
+  top: 0;
+  right: 0.375rem;
+  padding-left: 0.75rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.75rem;
-  white-space: normal;
-  text-align: right;
+  white-space: nowrap;
+  /* Never a hover target itself — it sits over the values it describes. */
+  pointer-events: none;
+  /* Matches the lit row behind it, so overlapped digits stay legible. */
+  background-color: inherit;
   @apply text-amber-700 dark:text-amber-300;
 }
 
-.problem-statement .cf-line-active .cf-line-gloss {
+.problem-statement .cf-line-mapped.cf-hot .cf-line-gloss {
   display: inline;
 }
 
-/* outline (not padding) so the highlight never shifts layout */
-.problem-statement .input-specification p {
+/* Individual sample values (pointer devices only — see ProblemContent). */
+.problem-statement .cf-tok {
+  border-radius: 0.1875rem;
+  padding: 0 0.125rem;
+  margin: 0 -0.125rem;
+  transition: background-color 120ms;
+}
+
+.problem-statement .cf-tok.cf-focus,
+.problem-statement .cf-tok.cf-hot {
+  @apply bg-amber-300 text-slate-900 dark:bg-amber-400 dark:text-slate-900;
+}
+
+.problem-statement .cf-tok.cf-warm {
+  @apply bg-amber-200/50 dark:bg-amber-400/20;
+}
+
+/* Clause and paragraph highlights use an outline rather than padding so the
+   text never reflows when it lights up. */
+.problem-statement .cf-clause,
+.problem-statement .input-specification > p,
+.problem-statement .cf-tex {
   transition: background-color 150ms;
 }
 
-.problem-statement .cf-spec-active {
-  outline-width: 6px;
+.problem-statement .cf-clause.cf-hot,
+.problem-statement .cf-tex.cf-hot,
+.problem-statement .input-specification > p.cf-hot {
+  outline-width: 3px;
   outline-style: solid;
   border-radius: 0.25rem;
   @apply bg-amber-100 outline-amber-100 dark:bg-amber-400/10 dark:outline-amber-400/10;
+}
+
+/* A variable mention. Only the one under the cursor is boxed — variables
+   that merely happen to sit inside the lit clause take the clause's own
+   background above, so they don't masquerade as the one being explained. */
+.problem-statement .cf-tex.cf-focus {
+  border-radius: 0.1875rem;
+  outline: 3px solid;
+  @apply bg-amber-300 outline-amber-300 dark:bg-amber-400/40 dark:outline-amber-400/40;
+}
+
+/* Mentions elsewhere in the statement: enough to find at a glance, quiet
+   enough that a variable used six times doesn't light the page up. */
+.problem-statement .cf-tex.cf-warm {
+  border-radius: 0.1875rem;
+  text-decoration: underline dotted 2px;
+  text-underline-offset: 3px;
+  @apply bg-amber-200/60 decoration-amber-600/70 dark:bg-amber-400/15 dark:decoration-amber-400/70;
 }
 
 .problem-statement ul, .problem-statement ol {

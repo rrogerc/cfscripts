@@ -325,6 +325,14 @@ def _linemap_payload(row):
     return out
 
 
+def _linemap_current(row):
+    """Whether a cached row matches the payload shape the client expects."""
+    try:
+        return json.loads(row["content_json"]).get("v") == solutions.LINEMAP_VERSION
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 @app.post("/api/linemap")
 def linemap(contest_id: int, index: str):
     """Sample-input line map for hover highlighting, generating on first ask.
@@ -337,7 +345,10 @@ def linemap(contest_id: int, index: str):
     with db.connect() as conn:
         row = db.get_linemap(conn, contest_id, index)
         if row is not None and row["status"] == "done":
-            return {"linemap": _linemap_payload(row)}
+            if _linemap_current(row):
+                return {"linemap": _linemap_payload(row)}
+            # Written by an older schema — drop it and generate afresh.
+            db.discard_linemap(conn, contest_id, index)
         now = int(time())
         claimed = db.claim_linemap(
             conn, contest_id, index, now, now - SOLUTION_STALE_SECONDS

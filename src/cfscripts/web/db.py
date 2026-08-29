@@ -204,6 +204,16 @@ def release_linemap(conn, contest_id, problem_index):
     return _release_cached(conn, _LINEMAPS, contest_id, problem_index)
 
 
+def discard_linemap(conn, contest_id, problem_index):
+    """Drop a cached map of any status, so a payload written by an older
+    schema version regenerates instead of being served half-understood."""
+    conn.execute(
+        "DELETE FROM problem_linemaps WHERE contest_id = %s AND problem_index = %s",
+        (contest_id, problem_index),
+    )
+    conn.commit()
+
+
 def finish_linemap(conn, contest_id, problem_index, content_json, model, now):
     row = conn.execute(
         """
