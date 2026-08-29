@@ -505,10 +505,6 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
       return [para];
     };
 
-    // Individual values are a pointer-device affordance; on touch the whole
-    // line stays the tap target, which is the only thing sized for a finger.
-    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-
     const cleanups: (() => void)[] = [];
     const mentionsOf = (base: string) =>
       Array.from(el.querySelectorAll(`.cf-tex[data-tex-base="${base}"]`));
@@ -524,7 +520,10 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
       const para = paras[m.para - 1];
       if (!lineEl || !para) continue;
 
-      if (finePointer && m.kind !== 'line' && m.vars.length) {
+      // Values are their own targets on touch as well as pointer devices.
+      // Nothing is lost by it: the row itself is still a target, so tapping
+      // between values (or anywhere else on the line) gives the line gloss.
+      if (m.kind !== 'line' && m.vars.length) {
         // Rebuild the line as one span per value so each is its own target.
         const parts = (lineEl.textContent ?? '').split(/(\s+)/);
         lineEl.textContent = '';
@@ -634,9 +633,14 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 
     el.addEventListener('mouseover', onOver);
     el.addEventListener('mouseleave', clear);
+    // Touch fires mouseover inconsistently and never fires mouseleave, so a
+    // tap is wired up explicitly: it resolves the same target and the
+    // highlight simply stays until the next tap resolves something else.
+    el.addEventListener('click', onOver);
     cleanups.push(() => {
       el.removeEventListener('mouseover', onOver);
       el.removeEventListener('mouseleave', clear);
+      el.removeEventListener('click', onOver);
       clear();
     });
 

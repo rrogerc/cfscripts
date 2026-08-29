@@ -184,12 +184,22 @@ body {
   display: inline;
 }
 
-/* Individual sample values (pointer devices only — see ProblemContent). */
+/* Individual sample values. The negative margins cancel the padding so the
+   monospace grid stays aligned while the hit box grows. */
 .problem-statement .cf-tok {
   border-radius: 0.1875rem;
   padding: 0 0.125rem;
   margin: 0 -0.125rem;
   transition: background-color 120ms;
+}
+
+/* A fingertip needs more than a digit's width, so grow the tap target
+   vertically on touch — the row spacing absorbs it. */
+@media (pointer: coarse) {
+  .problem-statement .cf-tok {
+    padding: 0.25rem 0.2rem;
+    margin: -0.25rem -0.2rem;
+  }
 }
 
 .problem-statement .cf-tok.cf-focus,
