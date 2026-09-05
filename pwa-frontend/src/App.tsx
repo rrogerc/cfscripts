@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus, Timer } from 'lucide-react';
 import { API_BASE_URL } from './api';
 import { ratingColorClass } from './colors';
 import { ProblemContent, type Problem } from './ProblemContent';
@@ -23,6 +23,40 @@ const MIN_LEVEL = 8;
 const MAX_LEVEL = 32;
 const LEVELS = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) => i + MIN_LEVEL);
 
+function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+// Count-up clock for the current pick. Owns its own tick so the rest of the
+// app doesn't re-render every second, and derives from wall-clock time so it
+// stays right after the tab is backgrounded (intervals get throttled there).
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const t = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [since]);
+  return (
+    <span
+      className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 font-mono text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200"
+      title="Time on this problem"
+    >
+      <Timer className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+      {fmtElapsed(now - since)}
+    </span>
+  );
+}
+
 function App() {
   const [level, setLevel] = useState<number>(() => {
     const saved = localStorage.getItem('level');
@@ -43,6 +77,19 @@ function App() {
     return saved === 'cozy' || saved === 'wide' || saved === 'max' ? saved : 'wide';
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // When the current pick was first shown. Keyed on problem identity rather
+  // than on each fetch: /api/pick is deterministic, so "Pick again" returns
+  // the same problem until it's solved — the clock keeps running through
+  // that, and restarts only when a different problem comes back.
+  const [startedAt, setStartedAt] = useState(0);
+  const problemKey = problem ? `${problem.contestId}${problem.index}` : '';
+  const lastKeyRef = useRef('');
+  useEffect(() => {
+    if (!problemKey || problemKey === lastKeyRef.current) return;
+    lastKeyRef.current = problemKey;
+    setStartedAt(Date.now());
+  }, [problemKey]);
 
   useEffect(() => {
     document.documentElement.dataset.width = textWidth;
@@ -217,7 +264,7 @@ function App() {
           ) : html && problem ? (
             <div>
               {/* Compact re-pick strip — centered, above the statement */}
-              <div className="flex items-center justify-center gap-3 mb-5">
+              <div className="flex flex-wrap items-center justify-center gap-3 mb-5">
                 <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
                   <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
                   <select
@@ -238,6 +285,7 @@ function App() {
                   <RefreshCw className="w-4 h-4" />
                   Pick again
                 </button>
+                {startedAt > 0 && <Elapsed since={startedAt} />}
               </div>
               <ProblemContent html={html} problem={problem} />
             </div>
