@@ -789,7 +789,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   // clobber in-progress work), then open it. One paste starts the problem.
   const copyNvim = async () => {
     const file = `${problem.name}.cpp`;
-    const cmd = `[ -s "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
+    const cmd = `[ -e "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
     await navigator.clipboard.writeText(cmd);
     setNvimCopied(true);
     setTimeout(() => setNvimCopied(false), 2000);
