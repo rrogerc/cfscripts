@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { ClipboardCopy, Check, GraduationCap, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
 import { API_BASE_URL, fetchJson } from './api';
@@ -159,6 +160,61 @@ function splitIntoColumns(host: HTMLElement): HTMLElement[] {
   }
   root.insertBefore(cols, header ? header.nextSibling : null);
   return [main, side];
+}
+
+type SampleInput = { title: HTMLElement; pre: HTMLElement };
+
+/** Every sample input block, as the title to mount a copy button in plus the
+ * <pre> holding the text. Codeforces ships its own "Copy" div in the title,
+ * but it only works with the site's scripts — drop it so ours replaces it. */
+function collectSampleInputs(root: HTMLElement): SampleInput[] {
+  return Array.from(root.querySelectorAll<HTMLElement>('.sample-test .input')).flatMap((box) => {
+    const title = box.querySelector<HTMLElement>(':scope > .title');
+    const pre = box.querySelector<HTMLElement>(':scope > pre');
+    if (!title || !pre) return [];
+    title.querySelector('.input-output-copier')?.remove();
+    return [{ title, pre }];
+  });
+}
+
+/** Plain text of a sample <pre>: one row per line, trailing newline. Works
+ * both before and after the line-map decoration — modern statements have a
+ * <div> per line, old ones delimit with <br>, and the gloss spans hover adds
+ * are annotations, not input. */
+function sampleText(pre: HTMLElement): string {
+  const clone = pre.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('.cf-line-gloss').forEach((g) => g.remove());
+  const divs = Array.from(clone.children).filter((c) => c.tagName === 'DIV');
+  let lines: string[];
+  if (divs.length) {
+    lines = divs.map((d) => (d.textContent ?? '').trimEnd());
+  } else {
+    clone.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+    lines = (clone.textContent ?? '').split('\n').map((l) => l.trimEnd());
+  }
+  while (lines.length && !lines[0]) lines.shift();
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+  return lines.join('\n') + '\n';
+}
+
+function CopySampleInput({ pre }: { pre: HTMLElement }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(sampleText(pre));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="cf-copy inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium font-sans rounded-md border transition-colors bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600"
+      aria-label="Copy sample input"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
 }
 
 /** The variable a TeX span refers to when the span is nothing but that
@@ -378,6 +434,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   const [copied, setCopied] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
   const [nvimCopied, setNvimCopied] = useState(false);
+  // Copy buttons live inside the injected markup, so they are portaled into
+  // the sample titles found after each injection rather than rendered inline.
+  const [sampleInputs, setSampleInputs] = useState<SampleInput[]>([]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -385,6 +444,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 
     el.innerHTML = html;
     const columns = splitIntoColumns(el);
+    setSampleInputs(collectSampleInputs(el));
     // Both run before MathJax: variable spans must exist while the TeX is
     // still text, and clause splitting must not cut through math.
     wrapMathVariables(el);
@@ -681,6 +741,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     };
     const onClick = (ev: Event) => {
       const at = ev.target as Element;
+      // The copy button is a control, not a highlight target — pressing it
+      // must not release whatever is pinned.
+      if (at.closest('.cf-copy')) return;
       const wasPinned = pinned;
       pinned = false;
       // Clicking whatever is already lit releases it.
@@ -791,6 +854,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
         ref={contentRef}
         className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200"
       />
+      {sampleInputs.map((s, i) => createPortal(<CopySampleInput key={i} pre={s.pre} />, s.title))}
     </div>
   );
 });

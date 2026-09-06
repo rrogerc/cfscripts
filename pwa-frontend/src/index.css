@@ -88,6 +88,11 @@ body {
   font-size: 1rem;
   font-weight: bold;
   margin-top: 1rem;
+  /* Row so the copy button sits at the far edge of the Input title. */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .problem-statement .input, .problem-statement .output {
