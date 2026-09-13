@@ -410,7 +410,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
           ) : (
             <>
               <Swords className="w-5 h-5" />
-              Queue Up · 30:00
+              Queue Up · 25:00
             </>
           )}
         </button>

@@ -85,7 +85,7 @@ export function createDemoApi() {
       case 'POST /api/ranked/queue':
         active ??= {
           id: 900001 + history.length, contest_id: 900001, problem_index: 'C',
-          problem_name: demoProblem.name, start_ts: now(), deadline_ts: now() + 1800,
+          problem_name: demoProblem.name, start_ts: now(), deadline_ts: now() + 25 * 60,
         };
         body = { ...state(), html: demoHtml };
         break;

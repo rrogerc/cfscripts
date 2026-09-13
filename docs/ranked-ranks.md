@@ -21,6 +21,10 @@ match reviews omit the player's rank and League comparison; their controls scrol
 away with the statement. Post-match results show any subdivision/tier change.
 The Rank ladder explains the custom subdivisions and lists the tier ranges.
 
+New ranked matches allow 25 minutes. Existing matches keep their saved deadline.
+Elo updates depend on the player's Elo, the problem's rating, and the win/loss
+result, with K = 32; the time limit and solve speed do not enter the formula.
+
 ## League percentile comparison
 
 The comparison shown alongside each rank uses an explicit dated

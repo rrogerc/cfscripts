@@ -81,7 +81,7 @@ test('problem reading, tables, and settings fit at every text width', async ({ p
 test('a ranked match survives tab switches and can be reviewed', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Ranked', exact: true }).click();
   await expect(page.getByLabel('Your ranked rank').getByRole('heading')).toBeVisible();
-  await page.getByRole('button', { name: 'Queue Up · 30:00', exact: true }).click();
+  await page.getByRole('button', { name: 'Queue Up · 25:00', exact: true }).click();
   await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
   await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);

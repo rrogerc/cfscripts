@@ -47,7 +47,7 @@ are never cached. Interactive statements may have Interaction instead of Output.
 validated HTML, source URL and fetch timestamp. Rows do not automatically expire:
 a provider outage must not invalidate a usable statement. A cache hit makes no
 statement-provider request. A cache miss fetches and persists the statement
-before a ranked match can start, preserving the player's full 30 minutes.
+before a ranked match can start, preserving the player's full 25 minutes.
 
 An uncached problem still needs the mirror to be available. Existing cached problems
 and match statements continue to load during a provider outage. This does not

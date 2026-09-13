@@ -93,7 +93,7 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
                 return
             state["active"] = {"id": 17, "contest_id": 2049, "problem_index": "C",
                                "problem_name": "Test Problem", "start_ts": state["server_now"],
-                               "deadline_ts": state["server_now"] + 1800}
+                               "deadline_ts": state["server_now"] + 25 * 60}
             body = {**state, "html": f["html"]}
         elif path == "/api/ranked/problem":
             body = {"match_id": 17, "html": f["html"]}
@@ -217,12 +217,12 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
 
     await page.get_by_role("button", name="Ranked", exact=True).click()
     failures["queue"] = True
-    await page.get_by_role("button", name="Queue Up · 30:00", exact=True).click()
+    await page.get_by_role("button", name="Queue Up · 25:00", exact=True).click()
     await expect(page.get_by_text("Request failed (HTTP 502). Please try again.", exact=True)).to_be_visible()
     failures["queue"] = False
     await page.clock.fast_forward(5000)
-    await page.get_by_role("button", name="Queue Up · 30:00", exact=True).click()
-    await expect(page.get_by_text("30:00", exact=True)).to_be_visible()
+    await page.get_by_role("button", name="Queue Up · 25:00", exact=True).click()
+    await expect(page.get_by_text("25:00", exact=True)).to_be_visible()
     await page.get_by_role("button", name="Problem", exact=True).click()
     assert "Rating:" not in await page.evaluate("navigator.clipboard.readText()")
     await page.evaluate("localStorage.removeItem('rankedHtml:v3:Exonerate:17')")

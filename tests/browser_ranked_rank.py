@@ -48,7 +48,7 @@ async def exercise(browser, url, width):
         elif path == '/api/ranked/queue':
             state['active'] = {'id': len(state['history']) + 17, 'contest_id': 2049,
                                'problem_index': 'C', 'problem_name': 'Test Problem',
-                               'start_ts': state['server_now'], 'deadline_ts': state['server_now'] + 1800}
+                               'start_ts': state['server_now'], 'deadline_ts': state['server_now'] + 25 * 60}
             body = {**state, 'html': html}
         elif path == '/api/ranked/problem':
             body = {'match_id': state['active']['id'], 'html': html}
@@ -94,10 +94,10 @@ async def exercise(browser, url, width):
         if theme == 'dark':
             await page.get_by_role('button', name='Theme: dark', exact=True).click()
 
-    await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
+    await page.get_by_role('button', name='Queue Up · 25:00', exact=True).click()
     await expect(rank).to_have_count(0)
     await expect(page.locator('[aria-label="League of Legends equivalent"]:visible')).to_have_count(0)
-    await expect(page.get_by_text('30:00', exact=True)).to_be_visible()
+    await expect(page.get_by_text('25:00', exact=True)).to_be_visible()
     assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
     # A real polling transition must update both the rank and result banner.
     state['server_now'] += 60
@@ -107,7 +107,7 @@ async def exercise(browser, url, width):
     await expect(equivalent).to_contain_text('≈ Platinum II in League')
     await expect(page.locator('[aria-label="Rank after match"]')).to_have_text('Pupil II → Pupil I')
     await page.get_by_role('button', name='Continue', exact=True).click()
-    await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
+    await page.get_by_role('button', name='Queue Up · 25:00', exact=True).click()
     await expect(rank).to_have_count(0)
     await page.get_by_role('button', name='FF', exact=True).click()
     await page.get_by_role('button', name='Sure?', exact=True).click()
@@ -132,7 +132,7 @@ async def exercise(browser, url, width):
             await expect(rank.get_by_role('progressbar')).to_have_attribute('aria-valuenow', '100')
             await expect(equivalent).to_contain_text('≈ Challenger in League')
             await expect(equivalent).to_contain_text('CF top <0.003%')
-        await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
+        await page.get_by_role('button', name='Queue Up · 25:00', exact=True).click()
         await expect(rank).to_have_count(0)
         assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), label
         state['active'] = None

@@ -155,7 +155,7 @@ class RankedQueueTests(unittest.TestCase):
         self.save = stack.enter_context(patch.object(db, "save_statement"))
         self.insert = stack.enter_context(patch.object(db, "insert_match"))
         self.insert.return_value = {"id": 5, "contest_id": 2049, "problem_index": "C",
-                                   "problem_name": "Test Problem", "start_ts": 2000, "deadline_ts": 3800}
+                                   "problem_name": "Test Problem", "start_ts": 2000, "deadline_ts": 3500}
 
     def test_unavailable_statement_does_not_start_match_or_write_bad_cache(self):
         with patch.object(provider.requests, "get", return_value=response(503)):
@@ -190,7 +190,7 @@ class RankedQueueTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json()["server_now"], 2000)
         self.assertNotIn("problem_rating", result.json()["active"])
-        self.assertEqual(self.insert.call_args.args[3:5], (2000, 3800))
+        self.assertEqual(self.insert.call_args.args[3:5], (2000, 3500))
         self.assertEqual(events, ["fetch_statement", "save_statement", "start_clock"])
 
     def test_cache_write_failure_does_not_start_a_match(self):
