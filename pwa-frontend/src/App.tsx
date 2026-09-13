@@ -166,9 +166,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50 font-sans selection:bg-blue-500/30 transition-colors duration-200">
+    <div className="min-h-dvh flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50 font-sans selection:bg-blue-500/30 transition-colors duration-200">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 px-4 shadow-sm transition-colors duration-200">
+      <header className="app-header sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pt-[calc(var(--safe-area-top)+1rem)] pb-4 px-4 shadow-sm transition-colors duration-200">
         <div className="max-w-(--content-max) mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
             <BookOpen className="w-6 h-6" />
@@ -178,14 +178,14 @@ function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="min-w-11 min-h-11 flex items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label="Settings"
             >
               <Settings className="w-5 h-5" />
             </button>
             <button
               onClick={cycleTheme}
-              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="min-w-11 min-h-11 flex items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label={`Theme: ${theme}`}
               title={`Theme: ${theme}`}
             >
@@ -200,7 +200,7 @@ function App() {
 
       {/* Main Content Area — all views stay mounted so MathJax DOM, fetched
           rating rows, and the live match timer survive tab switches */}
-      <main className="flex-1 w-full max-w-(--content-max) mx-auto px-(--content-pad) py-4 sm:px-4 md:p-6 lg:py-8 pb-16 flex flex-col">
+      <main className="app-main flex-1 w-full max-w-(--content-max) mx-auto py-4 md:py-6 lg:py-8 flex flex-col">
         <div className={tab === 'pick' ? 'flex-1 flex flex-col' : 'hidden'}>
           <div className={!loading && !error && html && problem ? '' : 'hidden'}>
             {/* Keep controls and timer mounted while a pick is loading. */}
@@ -309,18 +309,21 @@ function App() {
       {/* Settings sheet */}
       {settingsOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/40 flex items-end sm:items-center justify-center"
+          className="settings-backdrop fixed inset-0 z-20 bg-black/40 flex items-end sm:items-center justify-center"
           onClick={() => setSettingsOpen(false)}
         >
           <div
-            className="w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-xl animate-in slide-in-from-bottom-4 duration-300"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Settings"
+            className="settings-sheet w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-5 pb-[calc(var(--safe-area-bottom)+1.25rem)] shadow-xl animate-in slide-in-from-bottom-4 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Settings</h2>
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="min-w-11 min-h-11 flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 aria-label="Close settings"
               >
                 <X className="w-5 h-5" />
@@ -357,7 +360,7 @@ function App() {
       )}
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] transition-colors duration-200">
+      <nav aria-label="Main navigation" className="app-nav fixed bottom-0 inset-x-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-[var(--safe-area-bottom)] transition-colors duration-200">
         <div className="max-w-(--content-max) mx-auto flex">
           <button
             onClick={() => setTab('pick')}

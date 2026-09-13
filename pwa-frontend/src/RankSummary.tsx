@@ -3,32 +3,13 @@ import { ratingColorClass } from './colors';
 import { rankedRank, RANK_TIERS, SUBDIVISIONS } from './ranks';
 import { leagueEquivalent, leagueEquivalentRange, RANK_DISTRIBUTION_SOURCE } from './leagueRanks';
 
-export function RankSummary({ elo, compact = false }: { elo: number; compact?: boolean }) {
+export function RankSummary({ elo }: { elo: number }) {
   const rank = rankedRank(elo);
   const color = ratingColorClass(rank.rating);
   const league = leagueEquivalent(rank.rating);
   const nextText = rank.next
     ? `${rank.next.min - rank.rating} Elo to ${rank.next.label} · ${rank.next.min} Elo`
     : 'Highest subdivision reached';
-
-  if (compact) {
-    return (
-      <div aria-label="Your ranked rank" className="space-y-1 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <span className={`flex items-center gap-1.5 min-w-0 font-semibold ${color}`}>
-            <Shield aria-hidden="true" className="w-3.5 h-3.5 shrink-0" />
-            <span>{rank.label}</span>
-          </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
-            {rank.rating} Elo
-          </span>
-        </div>
-        <p aria-label="League of Legends equivalent" className="text-xs text-slate-500 dark:text-slate-400">
-          League NA: ≈ {league.label} · CF top {league.topLabel}
-        </p>
-      </div>
-    );
-  }
 
   return (
     <section aria-label="Your ranked rank" className="space-y-3">

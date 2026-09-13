@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
+// Vite proxies /api locally; production serves it on the same origin too.
+// This also works from iOS Simulator without cross-origin requests.
+export const API_BASE_URL = '';
 
 export async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, init);

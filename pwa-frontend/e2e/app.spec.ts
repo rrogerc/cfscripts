@@ -1,0 +1,124 @@
+import { test, expect, type Page } from '@playwright/test';
+import { createDemoApi } from '../dev/demo-api';
+
+test.beforeEach(async ({ page }, testInfo) => {
+  const api = createDemoApi();
+  await page.route('**/api/**', route => {
+    const result = api(new URL(route.request().url()).pathname, route.request().method());
+    return route.fulfill({ status: result.status, json: result.body });
+  });
+  // Layout fixtures have no math. Keep these checks independent of the CDN.
+  await page.route('https://cdn.jsdelivr.net/**', route => route.fulfill({ body: '', contentType: 'text/javascript' }));
+  await page.addInitScript((insets: Record<string, number>) => {
+    localStorage.setItem('theme', 'dark');
+    document.addEventListener('DOMContentLoaded', () => {
+      for (const [edge, value] of Object.entries(insets)) {
+        document.documentElement.style.setProperty(`--safe-area-${edge}`, `${value}px`);
+      }
+    });
+  }, testInfo.project.metadata.insets ?? {});
+  await page.goto('/');
+});
+
+async function fitsViewport(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+}
+
+test('navigation and settings remain reachable inside the safe areas', async ({ page }, testInfo) => {
+  await expect(page.getByRole('heading', { name: 'CF Picker' })).toBeVisible();
+  await page.getByRole('button', { name: 'Increase level' }).click();
+  await expect(page.getByRole('combobox', { name: 'Level' })).toHaveValue('16');
+  const insets = testInfo.project.metadata.insets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  for (const button of await nav.getByRole('button').all()) {
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(insets.left);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width - insets.right);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height - insets.bottom + 1);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+  const settings = page.getByRole('button', { name: 'Settings', exact: true });
+  expect((await settings.boundingBox())!.y).toBeGreaterThanOrEqual(insets.top);
+  await settings.click();
+  const sheet = page.getByRole('dialog', { name: 'Settings' });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('button', { name: 'Cozy', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-width', 'cozy');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  await fitsViewport(page);
+  await testInfo.attach('home', { body: await page.screenshot({ scale: 'css' }), contentType: 'image/png' });
+});
+
+test('problem reading, tables, and settings fit at every text width', async ({ page }, testInfo) => {
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
+  for (const width of ['Cozy', 'Wide', 'Max']) {
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: width, exact: true }).click();
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await fitsViewport(page);
+  }
+  const table = page.getByRole('region', { name: 'Example moves' });
+  await expect(table).toBeVisible();
+  const tableSize = await table.evaluate(el => ({ content: el.scrollWidth, box: el.clientWidth }));
+  if (page.viewportSize()!.width < 512) expect(tableSize.content).toBeGreaterThan(tableSize.box);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const end = await page.getByText('End of sample statement.', { exact: true }).boundingBox();
+  const nav = await page.getByRole('navigation').boundingBox();
+  expect(end!.y + end!.height).toBeLessThan(nav!.y);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await testInfo.attach('settings', { body: await page.screenshot({ scale: 'css' }), contentType: 'image/png' });
+  await page.getByRole('button', { name: 'Close settings' }).click();
+  // dark → auto (dark OS) → light
+  await page.getByRole('button', { name: 'Theme: dark' }).click();
+  await page.getByRole('button', { name: 'Theme: auto' }).click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await fitsViewport(page);
+  await testInfo.attach('problem-light', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
+});
+
+test('a ranked match survives tab switches and can be reviewed', async ({ page }, testInfo) => {
+  await page.getByRole('button', { name: 'Ranked', exact: true }).click();
+  await expect(page.getByLabel('Your ranked rank').getByRole('heading')).toBeVisible();
+  await page.getByRole('button', { name: 'Queue Up · 30:00', exact: true }).click();
+  await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
+  await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);
+  if (page.viewportSize()!.width < 900) {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(page.getByText('Ranked match', { exact: true })).not.toBeInViewport();
+    await expect(page.getByRole('button', { name: 'FF', exact: true })).not.toBeInViewport();
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  await fitsViewport(page);
+  await page.getByRole('button', { name: 'Rating', exact: true }).click();
+  await expect(page.getByText('Sample Round (Div. 2)', { exact: true })).toBeVisible();
+  await fitsViewport(page);
+  await testInfo.attach('rating', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
+  await page.getByRole('button', { name: 'Ranked', exact: true }).click();
+  await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'FF', exact: true }).click();
+  await page.getByRole('button', { name: 'Sure?', exact: true }).click();
+  await expect(page.getByText('SURRENDERED', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: /900001C · A Walk Through the Array/ }).first().click();
+  await expect(page.getByText('Approach', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
+  await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);
+  if (page.viewportSize()!.width < 900) {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).not.toBeInViewport();
+  }
+  await fitsViewport(page);
+});
+
+test('a failed problem request can be retried', async ({ page }) => {
+  await page.route('**/api/pick?**', route => route.fulfill({ status: 503, json: { detail: 'Temporarily offline. Try again.' } }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await expect(page.getByText('Temporarily offline. Try again.')).toBeVisible();
+  await page.unroute('**/api/pick?**');
+  await page.getByRole('button', { name: 'Try Again', exact: true }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
+});

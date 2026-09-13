@@ -11,9 +11,45 @@ body {
    column (--content-max). Defaults match "wide"; App.tsx stamps
    data-width on <html>. */
 :root {
+  /* The preview overrides these variables; devices supply the real insets. */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
   --content-pad: 0.625rem;
   --statement-size: 0.9375rem;
   --content-max: 56rem;
+}
+
+.app-header,
+.app-nav {
+  padding-left: calc(var(--safe-area-left) + 1rem);
+  padding-right: calc(var(--safe-area-right) + 1rem);
+}
+
+.app-main {
+  padding-left: calc(var(--safe-area-left) + var(--content-pad));
+  padding-right: calc(var(--safe-area-right) + var(--content-pad));
+  /* Leave room for both the fixed tab bar and the home indicator. */
+  padding-bottom: calc(var(--safe-area-bottom) + 5rem);
+}
+
+@media (min-width: 640px) {
+  .app-main { --content-pad: 1rem; }
+}
+
+@media (min-width: 768px) {
+  .app-main { --content-pad: 1.5rem; }
+}
+
+.settings-backdrop {
+  padding: var(--safe-area-top) var(--safe-area-right) 0 var(--safe-area-left);
+}
+
+.settings-sheet {
+  max-height: calc(100dvh - var(--safe-area-top));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 :root[data-width='cozy'] {
   --content-pad: 1rem;
@@ -180,8 +216,8 @@ body {
      own scrollbar for problems with many test cases. */
   .problem-statement .cf-col-side {
     position: sticky;
-    top: calc(env(safe-area-inset-top) + 4.75rem);
-    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 9.5rem);
+    top: calc(var(--safe-area-top) + 4.75rem);
+    max-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 9.5rem);
     overflow-y: auto;
     overscroll-behavior: contain;
   }

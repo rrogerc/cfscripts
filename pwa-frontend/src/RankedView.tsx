@@ -240,14 +240,11 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
   // ---- Reviewing a finished match ----
   if (reviewRow) {
     return (
-      <div className="space-y-4">
-        <RankSummary elo={data.elo} compact />
-        <MatchReview
-          handle={handle}
-          row={reviewRow}
-          onBack={() => setReviewRow(null)}
-        />
-      </div>
+      <MatchReview
+        handle={handle}
+        row={reviewRow}
+        onBack={() => setReviewRow(null)}
+      />
     );
   }
 
@@ -257,8 +254,8 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
     const warning = remaining <= 600;
     return (
       <div className="pb-16">
-        {/* Timer bar — sticks below the app header */}
-        <div className="sticky top-[calc(env(safe-area-inset-top)+4.75rem)] z-[5] -mx-(--content-pad) px-(--content-pad) sm:-mx-4 sm:px-4 py-2 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 mb-4">
+        {/* Match controls scroll away with the statement. */}
+        <div className="-mx-(--content-pad) px-(--content-pad) sm:-mx-4 sm:px-4 py-2 border-b border-slate-200 dark:border-slate-800 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Swords className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -291,9 +288,6 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
               <Flag className="w-4 h-4" />
               {confirmSurrender ? 'Sure?' : 'FF'}
             </button>
-          </div>
-          <div className="mt-2">
-            <RankSummary elo={data.elo} compact />
           </div>
         </div>
 

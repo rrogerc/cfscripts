@@ -16,8 +16,9 @@ agree at boundaries. Elo calculation, problem selection and match records do
 not change. Rank is derived on every render and needs no separate stored state.
 
 The full summary shows rank, Elo, four progress segments, current subdivision
-range and the next promotion target. A compact summary stays visible in a live
-match and in match review. Post-match results show any subdivision/tier change.
+range and the next promotion target on the Ranked overview. Live problems and
+match reviews omit the player's rank and League comparison; their controls scroll
+away with the statement. Post-match results show any subdivision/tier change.
 The Rank ladder explains the custom subdivisions and lists the tier ranges.
 
 ## League percentile comparison

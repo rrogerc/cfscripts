@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iPhone preview · CF Picker</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/dev/iphone.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div><span class="eyebrow">CF PICKER · LOCAL PREVIEW</span><h1>iPhone 17 Pro</h1></div>
+      <div class="controls">
+        <label>Layout
+          <select id="mode"><option value="pwa">PWA layout</option><option value="browser">Browser viewport</option></select>
+        </label>
+        <label>Orientation
+          <select id="orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+        </label>
+        <label>Scale
+          <select id="scale"><option value="fit">Fit window</option><option value="1">100%</option><option value="0.75">75%</option></select>
+        </label>
+        <button id="reload" type="button">Reload app</button>
+        <a href="/" target="_blank" rel="noopener">Open full size ↗</a>
+      </div>
+    </header>
+    <main>
+      <div class="description">
+        <p id="data-source"></p>
+        <p>Live app at the phone’s CSS size. PWA layout adds estimated safe areas.
+          This uses your current browser; use iOS Simulator to check Safari, installation, and the keyboard.</p>
+      </div>
+      <div id="stage">
+        <div id="phone-space">
+          <div id="phone">
+            <iframe id="app" title="CF Picker iPhone preview" src="/" allow="clipboard-read; clipboard-write"></iframe>
+            <div class="status" aria-hidden="true"><span>9:41</span><span>▰ ▰ ▰</span></div>
+            <div class="island" aria-hidden="true"></div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+      <p id="dimensions" role="status"></p>
+    </main>
+    <script type="module" src="/dev/iphone.ts"></script>
+  </body>
+</html>

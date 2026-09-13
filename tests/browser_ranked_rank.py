@@ -95,9 +95,8 @@ async def exercise(browser, url, width):
             await page.get_by_role('button', name='Theme: dark', exact=True).click()
 
     await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
-    await expect(rank.get_by_text('Pupil II', exact=True)).to_be_visible()
-    await expect(rank.get_by_text('1337 Elo', exact=True)).to_be_visible()
-    await expect(equivalent).to_have_text('League NA: ≈ Platinum III · CF top 22.6%')
+    await expect(rank).to_have_count(0)
+    await expect(page.locator('[aria-label="League of Legends equivalent"]:visible')).to_have_count(0)
     await expect(page.get_by_text('30:00', exact=True)).to_be_visible()
     assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
     # A real polling transition must update both the rank and result banner.
@@ -109,16 +108,15 @@ async def exercise(browser, url, width):
     await expect(page.locator('[aria-label="Rank after match"]')).to_have_text('Pupil II → Pupil I')
     await page.get_by_role('button', name='Continue', exact=True).click()
     await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
-    await expect(rank.get_by_text('Pupil I', exact=True)).to_be_visible()
+    await expect(rank).to_have_count(0)
     await page.get_by_role('button', name='FF', exact=True).click()
     await page.get_by_role('button', name='Sure?', exact=True).click()
     await expect(rank.get_by_role('heading')).to_have_text('Pupil II')
     await expect(page.locator('[aria-label="Rank after match"]')).to_have_text('Pupil I → Pupil II')
     await page.get_by_role('button', name='Continue', exact=True).click()
     await page.get_by_role('button', name=re.compile('2049C · Test Problem')).first.click()
-    await expect(rank.get_by_text('Pupil II', exact=True)).to_be_visible()
-    await expect(rank.get_by_text('1345 Elo', exact=True)).to_be_visible()
-    await expect(equivalent).to_contain_text('League NA: ≈ Platinum II')
+    await expect(rank).to_have_count(0)
+    await expect(page.locator('[aria-label="League of Legends equivalent"]:visible')).to_have_count(0)
 
     # Long names must fit on phones; the open-ended top rank has no false
     # promotion target, and rounded ratings must agree with their title.
@@ -135,7 +133,7 @@ async def exercise(browser, url, width):
             await expect(equivalent).to_contain_text('≈ Challenger in League')
             await expect(equivalent).to_contain_text('CF top <0.003%')
         await page.get_by_role('button', name='Queue Up · 30:00', exact=True).click()
-        await expect(rank.get_by_text(label, exact=True)).to_be_visible()
+        await expect(rank).to_have_count(0)
         assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), label
         state['active'] = None
 

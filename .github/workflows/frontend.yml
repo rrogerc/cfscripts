@@ -1,0 +1,35 @@
+name: Desktop and iPhone checks
+
+on:
+  push:
+    paths: ['pwa-frontend/**', '.github/workflows/frontend.yml']
+  pull_request:
+    paths: ['pwa-frontend/**', '.github/workflows/frontend.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pwa-frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: pwa-frontend/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run lint
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: browser-report
+          path: pwa-frontend/playwright-report/
+          retention-days: 14

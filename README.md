@@ -53,6 +53,21 @@ The handle can also be overridden per-invocation with `--handle`.
 
 ## Development
 
+### Web app and iPhone preview
+
+The React app in `pwa-frontend` runs in a browser and installs as a PWA.
+To preview it at iPhone 17 Pro dimensions with interactive sample data:
+
+```bash
+cd pwa-frontend
+npm ci --legacy-peer-deps
+npm run dev:iphone
+```
+
+Use `npm run ios` for Apple's iPhone Simulator on a Mac, and `npm run test:e2e`
+for desktop and mobile browser checks. See the [frontend guide](pwa-frontend/README.md)
+for installation, live data, and PWA testing.
+
 ### Prerequisites
 
 - Python >= 3.9

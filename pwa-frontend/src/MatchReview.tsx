@@ -134,8 +134,8 @@ export function MatchReview({
 
   return (
     <div className="pb-16">
-      {/* Review header — mirrors the live match's sticky bar */}
-      <div className="sticky top-[calc(env(safe-area-inset-top)+4.75rem)] z-[5] -mx-(--content-pad) px-(--content-pad) sm:-mx-4 sm:px-4 py-2 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 mb-4">
+      {/* Review controls scroll away with the statement. */}
+      <div className="-mx-(--content-pad) px-(--content-pad) sm:-mx-4 sm:px-4 py-2 border-b border-slate-200 dark:border-slate-800 mb-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}

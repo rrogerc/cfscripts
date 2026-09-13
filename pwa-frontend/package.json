@@ -5,9 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:iphone": "vite --mode demo --host 127.0.0.1 --port 5174 --strictPort --open /dev/iphone.html",
+    "dev:iphone:live": "vite --host 127.0.0.1 --port 5173 --strictPort --open /dev/iphone.html",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:pwa": "npm run build && vite preview --mode demo --host 127.0.0.1 --port 4173 --strictPort",
+    "ios": "node scripts/ios-simulator.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "test:e2e": "playwright test",
+    "test:iphone": "playwright test --project='iphone-*'",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install chromium webkit"
   },
   "dependencies": {
     "lucide-react": "^1.8.0",
@@ -18,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
