@@ -4,15 +4,7 @@ import { ClipboardCopy, Check, GraduationCap, Terminal } from 'lucide-react';
 import TurndownService from 'turndown';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
-
-declare global {
-  interface Window {
-    MathJax?: {
-      typesetClear?: (elements: Element[]) => void;
-      typesetPromise?: (elements: Element[]) => Promise<void>;
-    };
-  }
-}
+import { typesetMath } from './mathjax';
 
 export type Problem = {
   contestId: number;
@@ -35,7 +27,7 @@ type LinemapLine = {
   vars: LinemapVar[];
   text: string;
 };
-type Linemap = { v: number; lines: LinemapLine[]; para_count: number };
+type Linemap = { v: number; lines: LinemapLine[]; para_count: number; statement_hash: string };
 
 // textContent collapses block boundaries — walk the tree and emit \n
 // for each <div>/<p>/<li>/<br> so CF's per-line sample I/O divs and
@@ -61,10 +53,52 @@ function blockTextContent(node: Node): string {
   return out.join('');
 }
 
+function cleanStatementTitle(root: HTMLElement) {
+  const title = root.querySelector<HTMLElement>('.header > .title');
+  if (title) {
+    title.textContent = (title.textContent ?? '').replace(/^[A-Z]\d?\.\s+/, '');
+  }
+}
+
 function htmlToMarkdown(html: string, problem: Problem): string {
   const td = new TurndownService({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
+  });
+
+  // Protect TeX from Turndown's Markdown escaping. Read text nodes so HTML
+  // entities are decoded, and leave literal sample/code contents alone.
+  const root = document.createElement('div');
+  root.innerHTML = html;
+  cleanStatementTitle(root);
+  const mathValues: string[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const texts: Text[] = [];
+  while (walker.nextNode()) texts.push(walker.currentNode as Text);
+  for (const node of texts) {
+    if (node.parentElement?.closest('pre, code')) continue;
+    const matches = [...node.data.matchAll(/\$\$\$([\s\S]*?)\$\$\$|\\\[([\s\S]*?)\\\]/g)];
+    if (!matches.length) continue;
+    const fragment = document.createDocumentFragment();
+    let from = 0;
+    for (const match of matches) {
+      fragment.append(node.data.slice(from, match.index));
+      const math = document.createElement('span');
+      math.className = 'cf-export-math';
+      math.dataset.exportMath = String(mathValues.length);
+      // Turndown also collapses text-node whitespace. Keep the original TeX
+      // outside its DOM so display math and TeX line breaks survive intact.
+      mathValues.push(match[1] != null ? `$${match[1]}$` : `\n\n$$\n${match[2]}\n$$\n\n`);
+      math.textContent = 'MATH';
+      fragment.append(math);
+      from = match.index + match[0].length;
+    }
+    fragment.append(node.data.slice(from));
+    node.replaceWith(fragment);
+  }
+  td.addRule('math', {
+    filter: (node) => node.classList?.contains('cf-export-math') ?? false,
+    replacement: (_content, node) => mathValues[Number((node as HTMLElement).dataset.exportMath)] ?? '',
   });
 
   // Codeforces .section-title → markdown heading
@@ -104,15 +138,42 @@ function htmlToMarkdown(html: string, problem: Problem): string {
   td.addRule('samplePre', {
     filter: (node) => node.nodeName === 'PRE',
     replacement: (_content, node) => {
-      const text = blockTextContent(node).split('\n').map(s => s.trimEnd()).join('\n').trim();
-      return `\n\`\`\`\n${text}\n\`\`\`\n\n`;
+      const text = blockTextContent(node);
+      const fence = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map(m => m[0].length + 1)));
+      return `\n${fence}\n${text}${text.endsWith('\n') ? '' : '\n'}${fence}\n\n`;
     },
   });
 
-  let md = td.turndown(html);
+  // Markdown cannot merge cells. Expand spans into a rectangular grid so
+  // every command/result remains attached to the correct row when copied.
+  td.addRule('table', {
+    filter: 'table',
+    replacement: (_content, node) => {
+      const rows = Array.from((node as HTMLTableElement).rows);
+      const grid: string[][] = rows.map(() => []);
+      rows.forEach((row, r) => {
+        let c = 0;
+        Array.from(row.cells).forEach((cell) => {
+          while (grid[r][c] !== undefined) c++;
+          const value = td.turndown(cell.innerHTML).trim()
+            .replace(/\r?\n+/g, '<br>').replace(/\|/g, '\\|');
+          const rowSpan = cell.rowSpan === 0 ? rows.length - r : cell.rowSpan;
+          for (let dr = 0; dr < rowSpan && r + dr < rows.length; dr++) {
+            for (let dc = 0; dc < cell.colSpan; dc++) {
+              grid[r + dr][c + dc] = value;
+            }
+          }
+          c += cell.colSpan;
+        });
+      });
+      const width = Math.max(0, ...grid.map(row => row.length));
+      if (!width) return '';
+      const line = (row: string[]) => `| ${Array.from({ length: width }, (_, i) => row[i] ?? '').join(' | ')} |`;
+      return `\n\n${[line(grid[0]), line(Array(width).fill('---')), ...grid.slice(1).map(line)].join('\n')}\n\n`;
+    },
+  });
 
-  // Convert Codeforces $$$ delimiters to standard $ for markdown math
-  md = md.replace(/\$\$\$/g, '$');
+  const md = td.turndown(root);
 
   // Prepend problem metadata; rating is absent for ranked matches (hidden
   // until the match resolves), so only include it when known.
@@ -162,7 +223,19 @@ function splitIntoColumns(host: HTMLElement): HTMLElement[] {
   return [main, side];
 }
 
-type SampleInput = { title: HTMLElement; pre: HTMLElement };
+function wrapTables(root: HTMLElement) {
+  root.querySelectorAll('table').forEach((table, i) => {
+    const scroll = document.createElement('div');
+    scroll.className = 'cf-table-scroll';
+    scroll.tabIndex = 0;
+    scroll.setAttribute('role', 'region');
+    scroll.setAttribute('aria-label', table.caption?.textContent?.trim() || `Problem table ${i + 1}`);
+    table.before(scroll);
+    scroll.append(table);
+  });
+}
+
+type SampleInput = { title: HTMLElement; text: string };
 
 /** Every sample input block, as the title to mount a copy button in plus the
  * <pre> holding the text. Codeforces ships its own "Copy" div in the title,
@@ -173,7 +246,9 @@ function collectSampleInputs(root: HTMLElement): SampleInput[] {
     const pre = box.querySelector<HTMLElement>(':scope > pre');
     if (!title || !pre) return [];
     title.querySelector('.input-output-copier')?.remove();
-    return [{ title, pre }];
+    // Capture the original input before annotations add glosses or split
+    // tokens. Copy must preserve the sample's whitespace through decoration.
+    return [{ title, text: sampleText(pre) }];
   });
 }
 
@@ -185,22 +260,20 @@ function sampleText(pre: HTMLElement): string {
   const clone = pre.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.cf-line-gloss').forEach((g) => g.remove());
   const divs = Array.from(clone.children).filter((c) => c.tagName === 'DIV');
-  let lines: string[];
+  let text: string;
   if (divs.length) {
-    lines = divs.map((d) => (d.textContent ?? '').trimEnd());
+    text = divs.map((d) => d.textContent ?? '').join('\n');
   } else {
     clone.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
-    lines = (clone.textContent ?? '').split('\n').map((l) => l.trimEnd());
+    text = clone.textContent ?? '';
   }
-  while (lines.length && !lines[0]) lines.shift();
-  while (lines.length && !lines[lines.length - 1]) lines.pop();
-  return lines.join('\n') + '\n';
+  return text.endsWith('\n') ? text : text + '\n';
 }
 
-function CopySampleInput({ pre }: { pre: HTMLElement }) {
+function CopySampleInput({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(sampleText(pre));
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -443,7 +516,10 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     if (!el || !html) return;
 
     el.innerHTML = html;
+    // Apply to cached statements too, keeping their annotation hash intact.
+    cleanStatementTitle(el);
     const columns = splitIntoColumns(el);
+    wrapTables(el);
     setSampleInputs(collectSampleInputs(el));
     // Both run before MathJax: variable spans must exist while the TeX is
     // still text, and clause splitting must not cut through math.
@@ -458,6 +534,8 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     const markOverflowingMath = () => {
       el.querySelectorAll('mjx-container').forEach((c) => {
         c.classList.remove('mjx-scroll');
+        // A table scrolls as a whole, keeping formulas aligned with cells.
+        if (c.closest('table')) return;
         const box = c.closest('.cf-col-main, .cf-col-side') ?? el;
         if (c.getBoundingClientRect().width > box.clientWidth) {
           c.classList.add('mjx-scroll');
@@ -466,35 +544,32 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     };
     let observer: ResizeObserver | undefined;
 
-    if (window.MathJax) {
-      if (window.MathJax.typesetClear) {
-        window.MathJax.typesetClear([el]);
-      }
-      if (window.MathJax.typesetPromise) {
-        window.MathJax.typesetPromise([el])
-          .then(() => {
-            markOverflowingMath();
-            observer = new ResizeObserver(markOverflowingMath);
-            // The columns break out past el's width, so their size can
-            // change while el's does not — observe both.
-            [el, ...columns].forEach((n) => observer!.observe(n));
-          })
-          .catch((err: unknown) => console.error('MathJax error', err));
-      }
-    }
-    return () => observer?.disconnect();
+    const cancelMath = typesetMath(el, () => {
+      markOverflowingMath();
+      observer = new ResizeObserver(markOverflowingMath);
+      // Column widths can change independently of the outer element.
+      [el, ...columns].forEach((n) => observer!.observe(n));
+    });
+
+    return () => {
+      cancelMath();
+      observer?.disconnect();
+    };
   }, [html]);
 
   // Kick off the line map as soon as the statement is shown (not on hover):
   // cached problems come back instantly, first-time problems finish while
   // the opening paragraphs are being read. Failures just mean no hover
   // annotations — the statement itself is untouched.
-  const [linemap, setLinemap] = useState<Linemap | null>(null);
+  const [annotation, setAnnotation] = useState<{ html: string; map: Linemap } | null>(null);
+  const linemap = annotation?.html === html ? annotation.map : null;
   useEffect(() => {
-    setLinemap(null);
+    setAnnotation(null);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     let polls = 0;
+    const hash = crypto.subtle.digest('SHA-256', new TextEncoder().encode(html))
+      .then(buffer => Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2, '0')).join(''));
     const load = async () => {
       try {
         const res = await fetchJson(
@@ -504,7 +579,11 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
         if (cancelled) return;
         const lm = res.linemap;
         if (lm?.status === 'done' && lm.data) {
-          setLinemap(lm.data);
+          // A browser may still hold an older statement after a source change
+          // or erratum. Never apply positions generated for different HTML.
+          if (lm.data.statement_hash === await hash && !cancelled) {
+            setAnnotation({ html, map: lm.data });
+          }
         } else if (lm?.status === 'pending' && polls++ < 30) {
           // Someone holds the generation lock — poll until it lands. The
           // budget covers a cold generation (the model gets the statement,
@@ -520,7 +599,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [problem.contestId, problem.index]);
+  }, [html, problem.contestId, problem.index]);
 
   // Decorate the DOM once both the statement and the map are in. Pointing at
   // a sample value highlights the clause that defines it, every mention of
@@ -806,15 +885,15 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
             rel="noopener noreferrer"
             className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
-            {problem.contestId}{problem.index}
+            Problem page
           </a>
           <a
-            href={`https://codeforces.com/contest/${problem.contestId}/problem/${problem.index}`}
+            href={`https://codeforces.com/contest/${problem.contestId}`}
             target="_blank"
             rel="noopener noreferrer"
             className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
-            contest
+            Contest page
           </a>
           {problem.rating != null && (
             <span className={`px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-bold ${ratingColorClass(problem.rating)}`}>
@@ -854,7 +933,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
         ref={contentRef}
         className="problem-statement text-slate-800 dark:text-slate-200 transition-colors duration-200"
       />
-      {sampleInputs.map((s, i) => createPortal(<CopySampleInput key={i} pre={s.pre} />, s.title))}
+      {sampleInputs.map((s, i) => createPortal(<CopySampleInput key={i} text={s.text} />, s.title))}
     </div>
   );
 });

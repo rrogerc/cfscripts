@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import { API_BASE_URL, fetchJson } from './api';
 import { ProblemContent } from './ProblemContent';
 import { ratingColorClass, deltaColorClass } from './colors';
+import { typesetMath } from './mathjax';
 import type { MatchRow } from './RankedView';
 
 type Solution = {
@@ -41,12 +42,7 @@ const SolutionContent = memo(function SolutionContent({ md }: { md: string }) {
     const el = ref.current;
     if (!el || !md) return;
     el.innerHTML = solutionHtml(md);
-    if (window.MathJax) {
-      window.MathJax.typesetClear?.([el]);
-      window.MathJax.typesetPromise?.([el]).catch((err: unknown) =>
-        console.error('MathJax error', err)
-      );
-    }
+    return typesetMath(el);
   }, [md]);
 
   return (

@@ -7,19 +7,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from cfscripts.core import ranked
 from cfscripts.core.picker import get_problem_by_level
-from cfscripts.core.scraper import get_problem_html
+from cfscripts.core.statements import ProblemUnavailable
 from cfscripts.lib.api import CACHE_NONE, ApiError
 from cfscripts.lib.contests import get_participations
 from cfscripts.lib.performance import UserPerformanceCalculator
 from cfscripts.lib.rating import get_rating_changes_for_user
 from cfscripts.lib.submissions import get_submissions
 from cfscripts.web import db, solutions
+from cfscripts.web.statements import get_problem_html, statement_hash
 
 app = FastAPI()
 
 
 @app.exception_handler(ApiError)
 def _api_error(request, exc):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(ProblemUnavailable)
+def _problem_unavailable(request, exc):
     return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
@@ -212,7 +218,7 @@ def ranked_queue(handle: str):
                 status_code=404, detail="No eligible problem found near your elo"
             )
 
-        # Fetch the statement before creating the match so a scrape failure
+        # Persist the statement before creating the match so a provider failure
         # doesn't leave a running clock on a problem the player never saw.
         html = get_problem_html(problem["contestId"], problem["index"])
         now = int(time())
@@ -325,10 +331,11 @@ def _linemap_payload(row):
     return out
 
 
-def _linemap_current(row):
-    """Whether a cached row matches the payload shape the client expects."""
+def _linemap_current(row, html_hash):
+    """Cached annotation positions must belong to this exact statement."""
     try:
-        return json.loads(row["content_json"]).get("v") == solutions.LINEMAP_VERSION
+        data = json.loads(row["content_json"])
+        return data.get("v") == solutions.LINEMAP_VERSION and data.get("statement_hash") == html_hash
     except (TypeError, ValueError, AttributeError):
         return False
 
@@ -340,14 +347,16 @@ def linemap(contest_id: int, index: str):
     Cached per problem with the same pending-lock pattern as editorials.
     Unlike editorials there is no match row to gate on — but the cache caps
     exposure at one flash call per problem, and a bogus problem id fails at
-    the statement scrape before any model call.
+    statement validation before any model call.
     """
+    html = get_problem_html(contest_id, index)
+    html_hash = statement_hash(html)
     with db.connect() as conn:
         row = db.get_linemap(conn, contest_id, index)
         if row is not None and row["status"] == "done":
-            if _linemap_current(row):
+            if _linemap_current(row, html_hash):
                 return {"linemap": _linemap_payload(row)}
-            # Written by an older schema — drop it and generate afresh.
+            # An older shape or statement — generate matching annotations.
             db.discard_linemap(conn, contest_id, index)
         now = int(time())
         claimed = db.claim_linemap(
@@ -361,7 +370,7 @@ def linemap(contest_id: int, index: str):
     # Lock held; generate with no connection open (same reasoning as
     # editorials — the model call outlives a healthy pooled connection).
     try:
-        data, model = solutions.generate_linemap(contest_id, index)
+        data, model = solutions.generate_linemap(contest_id, index, html=html)
     except Exception:
         with db.connect() as conn:
             db.release_linemap(conn, contest_id, index)

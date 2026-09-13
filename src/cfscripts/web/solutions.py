@@ -26,11 +26,11 @@ from cfscripts.core.scraper import (
     NoEditorial,
     get_editorial_excerpt,
     get_input_spec_paragraphs,
-    get_problem_html,
     get_sample_input_lines,
     html_to_text,
     split_clauses,
 )
+from cfscripts.web.statements import get_problem_html, statement_hash
 
 GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -166,7 +166,7 @@ def generate(contest_id, index, name):
 _LINEMAP_MAX_LINES = 40
 
 # Bump when the payload shape changes — cached rows below this regenerate.
-LINEMAP_VERSION = 2
+LINEMAP_VERSION = 3
 
 _LINEMAP_PROMPT = """\
 You annotate the sample input of a competitive programming problem so a
@@ -306,13 +306,14 @@ def _parse_linemap(content, paras_clauses, sample_lines):
     return {"v": LINEMAP_VERSION, "lines": lines, "para_count": len(paras_clauses)}
 
 
-def generate_linemap(contest_id, index):
+def generate_linemap(contest_id, index, html=None):
     """Map the first sample input's tokens to the statement that explains them.
 
     Returns (data, model). Raises SolutionUnavailable for problems without a
     standard Input section or sample (e.g. interactive/unusual formats).
     """
-    html = get_problem_html(contest_id, index)
+    if html is None:
+        html = get_problem_html(contest_id, index)
     statement = html_to_text(html)
     if not statement or statement.startswith("Error:"):
         raise SolutionUnavailable(
@@ -342,7 +343,9 @@ def generate_linemap(contest_id, index):
     content, model = _chat(
         _LINEMAP_PROMPT.format(statement=statement, paras=spec, lines=lines)
     )
-    return _parse_linemap(content, paras_clauses, sample_lines), model
+    data = _parse_linemap(content, paras_clauses, sample_lines)
+    data["statement_hash"] = statement_hash(html)
+    return data, model
 
 
 def _post(url, token, model, prompt):

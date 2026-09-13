@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus, Timer } from 'lucide-react';
-import { API_BASE_URL } from './api';
+import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
+import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { ProblemContent, type Problem } from './ProblemContent';
+import { ProblemTimer } from './ProblemTimer';
 import { RatingView } from './RatingView';
 import { RankedView } from './RankedView';
 
@@ -22,40 +23,6 @@ const PREFETCH_STALE_MS = 60_000;
 const MIN_LEVEL = 8;
 const MAX_LEVEL = 32;
 const LEVELS = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) => i + MIN_LEVEL);
-
-function fmtElapsed(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = String(s % 60).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
-}
-
-// Count-up clock for the current pick. Owns its own tick so the rest of the
-// app doesn't re-render every second, and derives from wall-clock time so it
-// stays right after the tab is backgrounded (intervals get throttled there).
-function Elapsed({ since }: { since: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    tick();
-    const t = setInterval(tick, 1000);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [since]);
-  return (
-    <span
-      className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 font-mono text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-200"
-      title="Time on this problem"
-    >
-      <Timer className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-      {fmtElapsed(now - since)}
-    </span>
-  );
-}
 
 function App() {
   const [level, setLevel] = useState<number>(() => {
@@ -78,18 +45,15 @@ function App() {
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // When the current pick was first shown. Keyed on problem identity rather
-  // than on each fetch: /api/pick is deterministic, so "Pick again" returns
-  // the same problem until it's solved — the clock keeps running through
-  // that, and restarts only when a different problem comes back.
-  const [startedAt, setStartedAt] = useState(0);
-  const problemKey = problem ? `${problem.contestId}${problem.index}` : '';
-  const lastKeyRef = useRef('');
-  useEffect(() => {
-    if (!problemKey || problemKey === lastKeyRef.current) return;
-    lastKeyRef.current = problemKey;
-    setStartedAt(Date.now());
-  }, [problemKey]);
+  // Keep the timer mounted through refetches; only a different problem
+  // remounts it and starts a fresh session.
+  const [timerProblemKey, setTimerProblemKey] = useState('');
+  const showProblem = (data: PickData) => {
+    setProblem(data.problem);
+    setHtml(data.html);
+    setLoading(false);
+    setTimerProblemKey(`${data.problem.contestId}/${data.problem.index}`);
+  };
 
   useEffect(() => {
     document.documentElement.dataset.width = textWidth;
@@ -122,12 +86,7 @@ function App() {
   };
 
   const requestPick = async (lvl: number): Promise<PickData> => {
-    const response = await fetch(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.detail || `Error: ${response.statusText}`);
-    }
-    return response.json();
+    return fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
   };
 
   // Prefetch the pick so tapping the button renders instantly. Safe because
@@ -175,9 +134,7 @@ function App() {
     if (entry && entry.level === level) {
       if (entry.data) {
         // Prefetch already resolved — show it without any loading flash.
-        setProblem(entry.data.problem);
-        setHtml(entry.data.html);
-        setLoading(false);
+        showProblem(entry.data);
         return;
       }
       if (entry.data === undefined) {
@@ -187,9 +144,7 @@ function App() {
         setHtml('');
         const data = await entry.promise;
         if (data) {
-          setProblem(data.problem);
-          setHtml(data.html);
-          setLoading(false);
+          showProblem(data);
           return;
         }
         // Prefetch failed — fall through and refetch so the real error surfaces.
@@ -201,8 +156,7 @@ function App() {
     setHtml('');
     try {
       const data = await requestPick(level);
-      setProblem(data.problem);
-      setHtml(data.html);
+      showProblem(data);
       prefetchRef.current = { level, promise: Promise.resolve(data), data, ts: Date.now() };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch problem. Make sure backend is running.');
@@ -248,6 +202,33 @@ function App() {
           rating rows, and the live match timer survive tab switches */}
       <main className="flex-1 w-full max-w-(--content-max) mx-auto px-(--content-pad) py-4 sm:px-4 md:p-6 lg:py-8 pb-16 flex flex-col">
         <div className={tab === 'pick' ? 'flex-1 flex flex-col' : 'hidden'}>
+          <div className={!loading && !error && html && problem ? '' : 'hidden'}>
+            {/* Keep controls and timer mounted while a pick is loading. */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-3">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
+                <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
+                <select
+                  value={level}
+                  onChange={(e) => changeLevel(Number(e.target.value))}
+                  aria-label="Level"
+                  className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
+                >
+                  {LEVELS.map(l => (
+                    <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={fetchProblem}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all disabled:opacity-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Pick again
+              </button>
+            </div>
+            {timerProblemKey && <ProblemTimer key={timerProblemKey} />}
+          </div>
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-500" />
@@ -262,33 +243,7 @@ function App() {
               </button>
             </div>
           ) : html && problem ? (
-            <div>
-              {/* Compact re-pick strip — centered, above the statement */}
-              <div className="flex flex-wrap items-center justify-center gap-3 mb-5">
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
-                  <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Lvl</span>
-                  <select
-                    value={level}
-                    onChange={(e) => changeLevel(Number(e.target.value))}
-                    className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
-                  >
-                    {LEVELS.map(l => (
-                      <option key={l} value={l} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{l}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={fetchProblem}
-                  disabled={loading}
-                  className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all disabled:opacity-50"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Pick again
-                </button>
-                {startedAt > 0 && <Elapsed since={startedAt} />}
-              </div>
-              <ProblemContent html={html} problem={problem} />
-            </div>
+            <ProblemContent html={html} problem={problem} />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-8">
               <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-8 text-center space-y-7 shadow-sm">

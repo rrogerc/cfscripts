@@ -3,27 +3,11 @@ import re
 import cloudscraper
 from bs4 import BeautifulSoup
 
-# Reused across requests so the Cloudflare clearance cookie is cached.
-# On Vercel Fluid Compute, instances persist across invocations, so the
-# JS challenge is solved once per warm instance instead of per request.
+# Editorial scraping is best-effort; problem statements use structured data
+# and a persistent cache (see core/statements.py and web/statements.py).
 _scraper = cloudscraper.create_scraper(
     browser={'browser': 'chrome', 'platform': 'windows', 'mobile': False}
 )
-
-
-def get_problem_html(contest_id, index):
-    """Fetch and extract the problem statement HTML from Codeforces."""
-    url = f"https://codeforces.com/problemset/problem/{contest_id}/{index}"
-    response = _scraper.get(url)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-    problem_statement = soup.find('div', class_='problem-statement')
-
-    if not problem_statement:
-        return "<p>Error: Could not extract problem statement from Codeforces.</p>"
-
-    return str(problem_statement)
 
 
 class NoEditorial(Exception):
@@ -169,12 +153,35 @@ def get_sample_input_lines(statement_html):
 def html_to_text(statement_html):
     """Flatten statement HTML to plain text for an LLM prompt.
 
-    TeX stays in its $$$...$$$ delimiters; sample-test structure survives
-    as line breaks, which is all the model needs.
+    TeX stays in its $$$...$$$ delimiters. Tables retain cell boundaries
+    and expand merged cells so each result keeps its command/constraint.
     """
     soup = BeautifulSoup(statement_html, 'html.parser')
     for br in soup.find_all('br'):
         br.replace_with('\n')
+    for table in reversed(soup.find_all('table')):
+        rows = table.find_all('tr')
+        grid = [[] for _ in rows]
+        for r, row in enumerate(rows):
+            c = 0
+            for cell in row.find_all(['td', 'th'], recursive=False):
+                while c < len(grid[r]) and grid[r][c] is not None:
+                    c += 1
+                value = ' '.join(cell.get_text(' ', strip=True).split())
+                try:
+                    rowspan = max(0, int(cell.get('rowspan', 1))) or len(rows) - r
+                    colspan = min(1000, max(1, int(cell.get('colspan', 1))))
+                except ValueError:
+                    rowspan, colspan = 1, 1
+                for target in grid[r:min(r + rowspan, len(rows))]:
+                    target.extend([None] * max(0, c + colspan - len(target)))
+                    target[c:c + colspan] = [value] * colspan
+                c += colspan
+        caption = table.find('caption')
+        text = '\n'.join(' | '.join(value or '' for value in row) for row in grid)
+        if caption:
+            text = caption.get_text(' ', strip=True) + '\n' + text
+        table.replace_with('\n' + text + '\n')
     for block in soup.find_all(['div', 'p', 'li', 'tr']):
         block.append('\n')
     lines = [ln.strip() for ln in soup.get_text().split('\n')]

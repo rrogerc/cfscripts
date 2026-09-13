@@ -5,6 +5,8 @@ import { MatchReview } from './MatchReview';
 import { ProblemContent } from './ProblemContent';
 import { Sparkline } from './RatingView';
 import { ratingColorClass, deltaColorClass } from './colors';
+import { RankSummary } from './RankSummary';
+import { rankedRank } from './ranks';
 
 type ActiveMatch = {
   id: number;
@@ -39,7 +41,7 @@ type RankedStateData = {
 };
 
 const POLL_MS = 60_000;
-const htmlKey = (handle: string, matchId: number) => `rankedHtml:v1:${handle}:${matchId}`;
+const htmlKey = (handle: string, matchId: number) => `rankedHtml:v3:${handle}:${matchId}`;
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -74,6 +76,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
   // longer active, so its finalized row (rating now revealed) is in history.
   const applyState = (next: RankedStateData) => {
     skewRef.current = next.server_now - nowSec();
+    setNow(nowSec());
     const prevId = activeIdRef.current;
     if (prevId != null && next.active?.id !== prevId) {
       const row = next.history.find(r => r.id === prevId);
@@ -85,7 +88,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
     setData(next);
   };
 
-  const loadState = async (initial = false) => {
+  const loadState = async (initial = false, preserveError = false) => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
     if (initial) setLoading(true);
@@ -94,7 +97,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
         `${API_BASE_URL}/api/ranked/state?handle=${handle}`
       );
       applyState(state);
-      setError('');
+      if (!preserveError) setError('');
       if (state.active) {
         const cached = localStorage.getItem(htmlKey(handle, state.active.id));
         if (cached) {
@@ -108,7 +111,9 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load ranked state');
+      if (!preserveError) {
+        setError(err instanceof Error ? err.message : 'Failed to load ranked state');
+      }
     } finally {
       fetchingRef.current = false;
       setLoading(false);
@@ -179,7 +184,9 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start match');
-      loadState();
+      // Reconcile a response that may have been lost after the match started,
+      // but keep the queue error visible if the refresh succeeds.
+      await loadState(false, true);
     } finally {
       setBusy(false);
     }
@@ -233,11 +240,14 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
   // ---- Reviewing a finished match ----
   if (reviewRow) {
     return (
-      <MatchReview
-        handle={handle}
-        row={reviewRow}
-        onBack={() => setReviewRow(null)}
-      />
+      <div className="space-y-4">
+        <RankSummary elo={data.elo} compact />
+        <MatchReview
+          handle={handle}
+          row={reviewRow}
+          onBack={() => setReviewRow(null)}
+        />
+      </div>
     );
   }
 
@@ -281,6 +291,9 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
               <Flag className="w-4 h-4" />
               {confirmSurrender ? 'Sure?' : 'FF'}
             </button>
+          </div>
+          <div className="mt-2">
+            <RankSummary elo={data.elo} compact />
           </div>
         </div>
 
@@ -362,6 +375,12 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
               {Math.round(postMatch.elo_after) - Math.round(postMatch.elo_before)}
             </span>
           </p>
+          <p aria-label="Rank after match" className={`text-sm font-semibold ${ratingColorClass(Math.round(postMatch.elo_after))}`}>
+            {rankedRank(postMatch.elo_before).label !== rankedRank(postMatch.elo_after).label && (
+              <span className="text-slate-500 dark:text-slate-400">{rankedRank(postMatch.elo_before).label} → </span>
+            )}
+            {rankedRank(postMatch.elo_after).label}
+          </p>
           <button
             onClick={() => setPostMatch(null)}
             className="px-4 py-2 text-sm font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
@@ -374,12 +393,7 @@ export function RankedView({ handle, active }: { handle: string; active: boolean
       {/* Elo card */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-6 text-center space-y-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">
-            Problem Elo
-          </p>
-          <p className={`text-5xl font-extrabold ${ratingColorClass(Math.round(data.elo))}`}>
-            {Math.round(data.elo)}
-          </p>
+          <RankSummary elo={data.elo} />
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
             {data.seeded
               ? 'Seeded from your CF rating — play a match to make it yours'

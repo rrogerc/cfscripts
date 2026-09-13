@@ -51,6 +51,14 @@ CREATE TABLE IF NOT EXISTS problem_linemaps (
     updated_ts BIGINT NOT NULL,
     PRIMARY KEY (contest_id, problem_index)
 );
+CREATE TABLE IF NOT EXISTS problem_statements (
+    contest_id INTEGER NOT NULL,
+    problem_index TEXT NOT NULL,
+    html TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    fetched_ts BIGINT NOT NULL,
+    PRIMARY KEY (contest_id, problem_index)
+);
 """
 
 _schema_ready = False
@@ -84,6 +92,28 @@ def fetch_matches(conn, handle):
         "SELECT * FROM ranked_matches WHERE handle = %s ORDER BY id",
         (handle,),
     ).fetchall()
+
+
+def get_statement(conn, contest_id, index):
+    return conn.execute(
+        "SELECT * FROM problem_statements WHERE contest_id = %s AND problem_index = %s",
+        (contest_id, index),
+    ).fetchone()
+
+
+def save_statement(conn, contest_id, index, html, source_url, fetched_ts):
+    conn.execute(
+        """
+        INSERT INTO problem_statements
+            (contest_id, problem_index, html, source_url, fetched_ts)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (contest_id, problem_index) DO UPDATE
+            SET html = EXCLUDED.html, source_url = EXCLUDED.source_url,
+                fetched_ts = EXCLUDED.fetched_ts
+        """,
+        (contest_id, index, html, source_url, fetched_ts),
+    )
+    conn.commit()
 
 
 def insert_match(conn, handle, problem, start_ts, deadline_ts, elo_before):

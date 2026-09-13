@@ -15,6 +15,9 @@ dependencies = [
     "uvicorn",
     "beautifulsoup4",
     "cloudscraper",
+    "markdown-it-py>=3,<4",
+    "mdit-py-plugins>=0.4,<0.6",
+    "nh3>=0.3.7,<0.4",
     "psycopg[binary]",
 ]
 

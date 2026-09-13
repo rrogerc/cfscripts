@@ -103,6 +103,57 @@ body {
   margin-bottom: 1rem;
 }
 
+.problem-statement .cf-col-main,
+.problem-statement .cf-col-side {
+  min-width: 0;
+}
+
+.problem-statement .cf-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  @apply border border-slate-300 dark:border-slate-600;
+}
+
+.problem-statement .cf-table-scroll:focus-visible {
+  outline: 2px solid;
+  outline-offset: 2px;
+  @apply outline-blue-500;
+}
+
+.problem-statement table {
+  width: 100%;
+  min-width: 32rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.problem-statement td,
+.problem-statement th {
+  padding: 0.625rem 0.75rem;
+  vertical-align: middle;
+  @apply border border-slate-300 dark:border-slate-600;
+}
+
+.problem-statement th,
+.problem-statement .tex-tabular > tbody > tr:first-child > td {
+  font-weight: 600;
+  @apply bg-slate-100 dark:bg-slate-800;
+}
+
+.problem-statement td > p:last-child,
+.problem-statement th > p:last-child {
+  margin-bottom: 0;
+}
+
+.problem-statement .tex-tabular-text-align-center { text-align: center; }
+.problem-statement .tex-tabular-text-align-left { text-align: left; }
+.problem-statement .tex-tabular-text-align-right { text-align: right; }
+.problem-statement .tex-font-style-bf { font-weight: 700; }
+.problem-statement .tex-font-style-tt { font-family: ui-monospace, monospace; }
+
 /* Two-column statement (wide screens only). ProblemContent always wraps the
    statement into .cf-col-main (legend + input/output spec) and .cf-col-side
    (sample tests + note); below the breakpoint they simply stack in the

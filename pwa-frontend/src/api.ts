@@ -4,7 +4,10 @@ export async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `Error: ${res.statusText}`);
+    throw new Error(
+      (typeof body?.detail === 'string' && body.detail) ||
+      `Request failed (HTTP ${res.status}). Please try again.`
+    );
   }
   return res.json();
 }
