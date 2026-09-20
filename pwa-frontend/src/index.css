@@ -135,13 +135,14 @@ body {
   margin-bottom: 1rem;
 }
 
-/* A sample-test can contain several input/output pairs. Highlight only the
-   output immediately following the hovered input, without shifting either. */
-.problem-statement .sample-test .input:hover > pre,
-.problem-statement .sample-test .input:hover + .output > pre {
-  outline: 2px solid;
-  outline-offset: -2px;
-  @apply bg-blue-100 outline-blue-400/70 dark:bg-blue-500/15;
+/* Only the pointed-at input row and that test case's answer light up. */
+.problem-statement .cf-case-active {
+  border-radius: 0.25rem;
+  @apply bg-amber-100 dark:bg-amber-400/10;
+}
+
+.problem-statement .cf-sample-output-line {
+  min-height: 1lh;
 }
 
 .problem-statement p {

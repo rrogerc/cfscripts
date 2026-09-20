@@ -5,6 +5,7 @@ import TurndownService from 'turndown';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { typesetMath } from './mathjax';
+import { attachSampleCaseHighlight } from './sampleCases';
 
 export type Problem = {
   contestId: number;
@@ -558,6 +559,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     const columns = splitIntoColumns(el);
     wrapTables(el);
     setSampleInputs(collectSampleInputs(el));
+    const clearSampleCases = attachSampleCaseHighlight(el);
     // Both run before MathJax: variable spans must exist while the TeX is
     // still text, and clause splitting must not cut through math.
     wrapMathVariables(el);
@@ -591,6 +593,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     return () => {
       cancelMath();
       observer?.disconnect();
+      clearSampleCases();
     };
   }, [html]);
 

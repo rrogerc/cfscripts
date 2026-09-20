@@ -23,7 +23,7 @@ export const demoHtml = `
   </div>
   <div class="sample-tests"><div class="section-title">Example</div>
     <div class="sample-test">
-      <div class="input"><div class="title">Input</div><pre>2\n5\n1 2 3 2 1\n4\n2 2 2 2</pre></div>
+      <div class="input"><div class="title">Input</div><pre><div class="test-example-line test-example-line-0">2</div><div class="test-example-line test-example-line-1">5</div><div class="test-example-line test-example-line-1">1 2 3 2 1</div><div class="test-example-line test-example-line-2">4</div><div class="test-example-line test-example-line-2">2 2 2 2</div></pre></div>
       <div class="output"><div class="title">Output</div><pre>2\n0</pre></div>
     </div>
   </div>

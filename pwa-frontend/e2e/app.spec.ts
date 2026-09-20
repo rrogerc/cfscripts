@@ -201,3 +201,76 @@ for (const [format, input] of Object.entries(sampleFormats)) {
     expect(markdown).toContain('```\n  3\n\n4  \n```');
   });
 }
+
+test('test-case hover highlights its answer without coloring whole sample blocks', async ({ page }, testInfo) => {
+  const input = '<div class="test-example-line-0">2</div>'
+    + '<div class="test-example-line-1">2</div><div class="test-example-line-1">1 2</div>'
+    + '<div class="test-example-line-2">1</div><div class="test-example-line-2">4</div>';
+  const pair = (output: string) => `<div class="input"><div class="title">Input</div><pre><span></span>\n${input}</pre></div>`
+    + `<div class="output"><div class="title">Output</div><pre><span></span>\n${output}</pre></div>`;
+  const html = `<div class="problem-statement">
+    <div class="header"><div class="title">A. Sample cases</div></div>
+    <div class="input-specification"><p>Read the array values.</p></div>
+    <div class="sample-test">${pair('3\n4\n')}
+      ${pair('<div class="test-example-line-1">YES</div><div class="test-example-line-1">1 2</div><div class="test-example-line-2">NO</div>')}
+      ${pair('YES\n1 2\nNO\n')}
+    </div></div>`;
+  await page.route('**/api/pick?**', route => route.fulfill({ json: {
+    problem: { contestId: 900003, index: 'A', name: 'Sample cases' }, html,
+  } }));
+  await page.route('**/api/linemap?**', route => route.fulfill({ json: { linemap: { status: 'done', data: {
+    v: 3, statement_hash: createHash('sha256').update(html).digest('hex'), para_count: 1,
+    lines: [{ line: 3, para: 1, clause: 0, clause_text: '', kind: 'array',
+      vars: [{ tex: 'a', text: 'array value' }], text: 'Array values' }],
+  } } } }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  const inputs = page.locator('.sample-test .input pre');
+  const outputs = page.locator('.sample-test .output pre');
+  const tokens = inputs.nth(0).locator('.cf-tok');
+  await expect(tokens).toHaveCount(2);
+  const firstRows = inputs.nth(0).locator(':scope > div');
+  const activeAnswers = page.locator('.sample-test .output .cf-case-active');
+  const blockStyles = () => page.locator('.sample-test pre').evaluateAll(blocks => blocks.map(block => {
+    const style = getComputedStyle(block);
+    return { background: style.backgroundColor, outline: style.outlineStyle };
+  }));
+
+  for (const theme of ['dark', 'light']) {
+    if (theme === 'light') {
+      await page.getByRole('button', { name: 'Theme: dark' }).click();
+      await page.getByRole('button', { name: 'Theme: auto' }).click();
+    }
+    const backgrounds = await blockStyles();
+    await firstRows.nth(1).hover();
+    await expect(activeAnswers).toHaveText(['3']);
+    await tokens.first().hover();
+    await expect(activeAnswers).toHaveText(['3']);
+    await expect(page.locator('.input-specification .cf-hot')).toHaveText('Read the array values.');
+    await expect(page.locator('.sample-test .input .cf-case-active')).toHaveCount(1);
+    await expect(activeAnswers).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    expect(await blockStyles()).toEqual(backgrounds);
+    await firstRows.nth(4).hover();
+    await expect(activeAnswers).toHaveText(['4']);
+    await firstRows.nth(0).hover(); // The test count has no corresponding answer.
+    await expect(activeAnswers).toHaveCount(0);
+
+    await inputs.nth(1).locator('.test-example-line-1').last().hover();
+    await expect(activeAnswers).toHaveText(['YES', '1 2']);
+    await inputs.nth(1).locator('.test-example-line-2').last().hover();
+    await expect(activeAnswers).toHaveText(['NO']);
+    await inputs.nth(2).locator('.test-example-line-1').last().hover();
+    await expect(activeAnswers).toHaveCount(0); // No guessed split of variable-length output.
+    await expect(outputs.nth(2)).toHaveJSProperty('textContent', 'YES\n1 2\nNO\n');
+
+    await firstRows.nth(1).hover();
+    await page.mouse.move(0, 0);
+    await expect(activeAnswers).toHaveCount(0);
+    const pin = () => testInfo.project.use.hasTouch ? firstRows.nth(1).tap() : firstRows.nth(1).click();
+    await pin();
+    await page.mouse.move(0, 0);
+    await expect(activeAnswers).toHaveText(['3']);
+    await pin();
+    await expect(activeAnswers).toHaveCount(0);
+  }
+});

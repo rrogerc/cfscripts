@@ -84,8 +84,10 @@ boundaries and repeat merged values so commands stay attached to their results.
 Exports protect TeX from Markdown escaping and preserve display equations.
 Sample copy buttons capture the original input before hover
 annotations modify the DOM, preserving whitespace and excluding explanations.
-Hovering a sample input block highlights that whole block and its paired output;
-other samples stay unhighlighted.
+Hovering an input line highlights just that row and its test case's output;
+tapping pins the highlight for scrolling on phones. Matching uses Codeforces'
+numbered case groups, with one output line per case when outputs aren't grouped.
+Samples without case markers or with ambiguous output boundaries stay unlinked.
 MathJax rendering waits for startup and runs sequentially, including in match
 review; overflow measurements run after rendering and on layout changes.
 
