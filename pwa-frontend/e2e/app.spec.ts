@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { createDemoApi } from '../dev/demo-api';
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -122,3 +123,81 @@ test('a failed problem request can be retried', async ({ page }) => {
   await page.getByRole('button', { name: 'Try Again', exact: true }).click();
   await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
 });
+
+const sampleFormats = {
+  span: '<span>\n2\n  1  2  \n\n4\n</span>',
+  br: '<span></span><br>2<br>  1  2  <br><br>4<br>',
+  div: '<span></span>\n<div></div><div>2</div><div>  1  2  </div><div></div><div>4</div>',
+};
+
+for (const [format, input] of Object.entries(sampleFormats)) {
+  test(`${format} samples omit leading blank lines and retain annotation alignment`, async ({ page }) => {
+    const html = `<div class="problem-statement">
+      <div class="header"><div class="title">A. Sample whitespace</div></div>
+      <div class="input-specification"><p>Read the two values.</p></div>
+      <div class="sample-test">
+        <div class="input"><div class="title">Input</div><pre>${input}</pre></div>
+        <div class="output"><div class="title">Output</div><pre><span>\n \t\n  3\n\n4  \n</span></pre></div>
+      </div></div>`;
+    await page.route('**/api/pick?**', route => route.fulfill({ json: {
+      problem: { contestId: 900002, index: 'A', name: 'Sample whitespace' }, html,
+    } }));
+    let releaseMap!: () => void;
+    const mapReady = new Promise<void>(resolve => { releaseMap = resolve; });
+    await page.route('**/api/linemap?**', async route => {
+      await mapReady;
+      await route.fulfill({ json: { linemap: { status: 'done', data: {
+        v: 3, statement_hash: createHash('sha256').update(html).digest('hex'), para_count: 1,
+        lines: [{ line: 3, para: 1, clause: 0, clause_text: '', kind: 'scalars',
+          vars: [{ tex: 'n', text: 'first value' }, { tex: 'm', text: 'second value' }], text: 'The two values' }],
+      } } } });
+    });
+    // The picker prefetches on startup; reload with these fixtures installed.
+    await page.reload();
+    // Capture copies without depending on platform clipboard permissions.
+    await page.evaluate(() => {
+      let copied = '';
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+        writeText: async (text: string) => { copied = text; },
+        readText: async () => copied,
+      } });
+    });
+    await page.getByRole('button', { name: 'Pick a problem' }).click();
+    const samples = page.locator('.sample-test pre');
+    await expect(samples).toHaveCount(2);
+    const startsOnFirstLine = async () => {
+      for (const pre of await samples.all()) {
+        expect(await pre.evaluate(el => {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const first = (node.textContent ?? '').search(/\S/);
+            if (first < 0) continue;
+            const range = document.createRange();
+            range.setStart(node, first);
+            range.setEnd(node, first + 1);
+            const style = getComputedStyle(el);
+            const offset = range.getBoundingClientRect().top - el.getBoundingClientRect().top - parseFloat(style.paddingTop);
+            return offset >= 0 && offset < parseFloat(style.lineHeight);
+          }
+          return false;
+        })).toBe(true);
+      }
+    };
+    await startsOnFirstLine();
+    await expect(samples.nth(1)).toHaveJSProperty('textContent', '  3\n\n4  \n');
+    releaseMap();
+    const token = page.locator('.cf-tok[data-tex-base="n"]');
+    await expect(token).toHaveText('1');
+    await expect(page.locator('.cf-tok[data-tex-base="m"]')).toHaveText('2');
+    await startsOnFirstLine();
+    await token.click();
+    await expect(page.locator('.input-specification .cf-hot')).toHaveText('Read the two values.');
+    await page.getByRole('button', { name: 'Copy sample input' }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('2\n  1  2  \n\n4\n');
+    await page.getByRole('button', { name: 'Problem', exact: true }).click();
+    const markdown = await page.evaluate(() => navigator.clipboard.readText());
+    expect(markdown).toContain('```\n2\n  1  2  \n');
+    expect(markdown).toContain('```\n  3\n\n4  \n```');
+  });
+}

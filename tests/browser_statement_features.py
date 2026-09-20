@@ -142,7 +142,7 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
     assert await root.locator(".cf-tex.cf-warm").count() > 0
     for i, sample in enumerate(f["samples"]):
         await page.get_by_role("button", name="Copy sample input").nth(i).click()
-        assert await page.evaluate("navigator.clipboard.readText()") == sample[0]
+        assert await page.evaluate("navigator.clipboard.readText()") == sample[0].lstrip('\n')
     await expect(token).to_have_class(re.compile("cf-focus"))
     await token.click()
     await root.locator('.cf-tex[data-tex-base="n"]').first.hover()
@@ -315,7 +315,7 @@ async def exercise_tables(browser, url, width):
             assert await table.evaluate('el => el.scrollLeft > 0')
             assert await table.evaluate('el => { el.scrollLeft = el.scrollWidth; return el.scrollLeft + el.clientWidth >= el.scrollWidth - 1; }')
     await page.get_by_role('button', name='Copy sample input').click()
-    sample = original.select_one('.sample-test .input pre').get_text()
+    sample = original.select_one('.sample-test .input pre').get_text().lstrip('\n')
     assert await page.evaluate('navigator.clipboard.readText()') == sample + ('' if sample.endswith('\n') else '\n')
     await page.get_by_role('button', name='Problem', exact=True).click()
     markdown = await page.evaluate('navigator.clipboard.readText()')

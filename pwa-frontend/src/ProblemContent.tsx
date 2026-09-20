@@ -60,6 +60,41 @@ function cleanStatementTitle(root: HTMLElement) {
   }
 }
 
+/** CF sample markup can start with empty lines. Remove that padding while
+ * retaining indentation, interior blank lines, and the original line-map
+ * positions (which count raw-text lines differently from per-line divs). */
+function cleanSampleStarts(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>('.sample-test .input > pre, .sample-test .output > pre').forEach((pre) => {
+    const rows = Array.from(pre.children).filter((child) => child.tagName === 'DIV');
+    let skipped = 0;
+    if (rows.length) {
+      for (const row of rows) {
+        if (row.textContent?.trim()) break;
+        row.remove();
+        skipped++;
+      }
+      // Loose whitespace before the first div is HTML padding, not a row
+      // counted by the server. Keep the remaining per-line markup intact.
+      while (pre.firstChild && pre.firstChild !== rows[skipped] && !pre.firstChild.textContent?.trim()) {
+        pre.firstChild.remove();
+      }
+    } else {
+      pre.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+      const prefix = (pre.textContent ?? '').match(/^(?:[ \t]*\r?\n)+/)?.[0] ?? '';
+      skipped = prefix.split('\n').length - 1;
+      let remaining = prefix.length;
+      const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+      while (remaining > 0 && walker.nextNode()) {
+        const node = walker.currentNode as Text;
+        const count = Math.min(remaining, node.length);
+        node.deleteData(0, count);
+        remaining -= count;
+      }
+    }
+    pre.dataset.sampleLineOffset = String(skipped);
+  });
+}
+
 function htmlToMarkdown(html: string, problem: Problem): string {
   const td = new TurndownService({
     headingStyle: 'atx',
@@ -71,6 +106,7 @@ function htmlToMarkdown(html: string, problem: Problem): string {
   const root = document.createElement('div');
   root.innerHTML = html;
   cleanStatementTitle(root);
+  cleanSampleStarts(root);
   const mathValues: string[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const texts: Text[] = [];
@@ -518,6 +554,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     el.innerHTML = html;
     // Apply to cached statements too, keeping their annotation hash intact.
     cleanStatementTitle(el);
+    cleanSampleStarts(el);
     const columns = splitIntoColumns(el);
     wrapTables(el);
     setSampleInputs(collectSampleInputs(el));
@@ -621,7 +658,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 
     // Line elements: modern statements already have one <div> per line;
     // older raw-text <pre>s get wrapped the same way the server counted
-    // them (trailing blanks dropped, interior blanks kept).
+    // them (trailing blanks dropped, interior blanks kept). Leading padding
+    // was removed for display; offset the original map positions below.
+    const lineOffset = Number(pre.dataset.sampleLineOffset ?? 0);
     let lineEls = Array.from(pre.children).filter(
       (c): c is HTMLElement => c.tagName === 'DIV',
     );
@@ -676,7 +715,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     const linesOfClause = new Map<Element, HTMLElement[]>();
 
     for (const m of linemap.lines) {
-      const lineEl = lineEls[m.line - 1];
+      const lineEl = lineEls[m.line - 1 - lineOffset];
       const para = paras[m.para - 1];
       if (!lineEl || !para) continue;
 
