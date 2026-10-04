@@ -1,6 +1,9 @@
 // Shared by the local preview server and isolated browser tests.
 // These synthetic contest IDs keep sample results separate from real cached results.
-export const demoProblem = { contestId: 900001, index: 'C', rating: 1500, name: 'A Walk Through the Array' };
+export const demoProblem = {
+  contestId: 900001, index: 'C', rating: 1500, name: 'A Walk Through the Array',
+  tags: ['greedy', 'implementation'],
+};
 
 export const demoHtml = `
 <div class="problem-statement">
@@ -62,6 +65,9 @@ export function createDemoApi() {
     switch (`${method} ${pathname}`) {
       case 'GET /api/pick':
         body = { problem: demoProblem, html: demoHtml };
+        break;
+      case 'GET /api/tags':
+        body = { tags: demoProblem.tags };
         break;
       case 'GET /api/linemap':
         body = { linemap: null };

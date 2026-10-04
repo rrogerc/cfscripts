@@ -12,6 +12,7 @@ export type Problem = {
   index: string;
   rating?: number;
   name?: string;
+  tags?: string[];
 };
 
 // Sample-input line map. Per line: which Input-spec paragraph and clause
@@ -215,7 +216,8 @@ function htmlToMarkdown(html: string, problem: Problem): string {
   // Prepend problem metadata; rating is absent for ranked matches (hidden
   // until the match resolves), so only include it when known.
   const rating = problem.rating != null ? ` | Rating: ${problem.rating}` : '';
-  const header = `**${problem.contestId}${problem.index}**${rating}\n\n`;
+  const tags = problem.tags?.length ? `Tags: ${problem.tags.join(', ')}\n\n` : '';
+  const header = `**${problem.contestId}${problem.index}**${rating}\n\n${tags}`;
   return header + md;
 }
 
@@ -547,6 +549,30 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   // Copy buttons live inside the injected markup, so they are portaled into
   // the sample titles found after each injection rather than rendered inline.
   const [sampleInputs, setSampleInputs] = useState<SampleInput[]>([]);
+
+  const tagKey = `${problem.contestId}/${problem.index}`;
+  const [tagLookup, setTagLookup] = useState<{
+    key: string; tags?: string[]; unavailable?: boolean;
+  } | null>(null);
+  const tags = problem.tags ?? (tagLookup?.key === tagKey ? tagLookup.tags : undefined);
+  const tagsUnavailable = problem.tags == null && tagLookup?.key === tagKey && tagLookup.unavailable;
+
+  useEffect(() => {
+    // Picks already carry tags; ranked/review and older saved problems only
+    // carry IDs. Fetch hints separately so cached statement hashes stay valid.
+    if (problem.tags != null) return;
+    const controller = new AbortController();
+    const key = `${problem.contestId}/${problem.index}`;
+    fetchJson(
+      `${API_BASE_URL}/api/tags?contest_id=${problem.contestId}&index=${encodeURIComponent(problem.index)}`,
+      { signal: controller.signal },
+    ).then(data => {
+      if (!controller.signal.aborted) setTagLookup({ key, tags: data.tags });
+    }).catch(() => {
+      if (!controller.signal.aborted) setTagLookup({ key, unavailable: true });
+    });
+    return () => controller.abort();
+  }, [problem.contestId, problem.index, problem.tags]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -892,14 +918,14 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   }, [html, linemap]);
 
   const copyMarkdown = async () => {
-    const md = htmlToMarkdown(html, problem);
+    const md = htmlToMarkdown(html, { ...problem, tags });
     await navigator.clipboard.writeText(md);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const copyCoachPrompt = async () => {
-    const md = htmlToMarkdown(html, problem);
+    const md = htmlToMarkdown(html, { ...problem, tags });
     const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\nLet's start: paste whatever code you've got and I'll work from it — otherwise, tell me how you're reading the problem.\n`;
     await navigator.clipboard.writeText(prompt);
     setCoachCopied(true);
@@ -968,6 +994,27 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
               {coachCopied ? 'Copied' : 'Coach'}
             </button>
         </div>
+      </div>
+
+      <div
+        role="group"
+        aria-label="Problem tags"
+        aria-live="polite"
+        className="mb-5 flex flex-wrap items-center gap-2 text-sm"
+      >
+        <span className="font-medium text-slate-500 dark:text-slate-400">Tags:</span>
+        {tags?.length ? tags.map(tag => (
+          <span
+            key={tag}
+            className="max-w-full break-words rounded-full border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 text-blue-700 dark:text-blue-300"
+          >
+            {tag}
+          </span>
+        )) : (
+          <span className="text-slate-500 dark:text-slate-400">
+            {tagsUnavailable ? 'Tags unavailable' : tags ? 'No tags listed' : 'Loading tags…'}
+          </span>
+        )}
       </div>
 
       {/* Injected Codeforces HTML — managed via ref, not dangerouslySetInnerHTML */}

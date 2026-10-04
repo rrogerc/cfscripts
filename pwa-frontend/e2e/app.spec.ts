@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { createDemoApi } from '../dev/demo-api';
+import { createDemoApi, demoHtml, demoProblem } from '../dev/demo-api';
 
 test.beforeEach(async ({ page }, testInfo) => {
   const api = createDemoApi();
@@ -54,6 +54,7 @@ test('navigation and settings remain reachable inside the safe areas', async ({ 
 test('problem reading, tables, and settings fit at every text width', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Pick a problem' }).click();
   await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
+  await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
   for (const width of ['Cozy', 'Wide', 'Max']) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: width, exact: true }).click();
@@ -79,11 +80,59 @@ test('problem reading, tables, and settings fit at every text width', async ({ p
   await testInfo.attach('problem-light', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
 });
 
+test('problem tags are visible by default and included in Problem and Coach copies', async ({ page }) => {
+  const lookups: string[] = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/tags') lookups.push(request.url());
+  });
+  await page.evaluate(() => {
+    let copied = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: async (text: string) => { copied = text; },
+      readText: async () => copied,
+    } });
+  });
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  const tags = page.getByRole('group', { name: 'Problem tags' });
+  for (const tag of demoProblem.tags) {
+    await expect(tags.getByText(tag, { exact: true })).toBeVisible();
+  }
+  expect(lookups).toHaveLength(0);
+  for (const name of ['Problem', 'Coach']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Tags: greedy, implementation');
+  }
+});
+
+for (const scenario of ['lookup', 'empty', 'unavailable'] as const) {
+  test(`${scenario} tags leave saved problem statements readable`, async ({ page }) => {
+    await page.route('**/api/pick?**', route => route.fulfill({ json: {
+      problem: { contestId: demoProblem.contestId, index: demoProblem.index, name: demoProblem.name },
+      html: demoHtml,
+    } }));
+    await page.route('**/api/tags?**', route => route.fulfill(scenario === 'unavailable'
+      ? { status: 502, json: { detail: 'Codeforces unavailable' } }
+      : { json: { tags: scenario === 'empty' ? [] : ['dynamic programming', 'data structures'] } }));
+    await page.reload();
+    await page.getByRole('button', { name: 'Pick a problem' }).click();
+    const tags = page.getByRole('group', { name: 'Problem tags' });
+    const label = scenario === 'lookup' ? 'dynamic programming' : scenario === 'empty' ? 'No tags listed' : 'Tags unavailable';
+    await expect(tags.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.locator('.problem-statement .header .title')).toHaveText(demoProblem.name);
+    await fitsViewport(page);
+  });
+}
+
 test('a ranked match survives tab switches and can be reviewed', async ({ page }, testInfo) => {
+  const statementRequests: string[] = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/ranked/problem') statementRequests.push(request.url());
+  });
   await page.getByRole('button', { name: 'Ranked', exact: true }).click();
   await expect(page.getByLabel('Your ranked rank').getByRole('heading')).toBeVisible();
   await page.getByRole('button', { name: 'Queue Up · 25:00', exact: true }).click();
   await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
   await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);
   if (page.viewportSize()!.width < 900) {
@@ -99,12 +148,18 @@ test('a ranked match survives tab switches and can be reviewed', async ({ page }
   await testInfo.attach('rating', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
   await page.getByRole('button', { name: 'Ranked', exact: true }).click();
   await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Ranked', exact: true }).click();
+  await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
+  expect(statementRequests).toHaveLength(0);
   await page.getByRole('button', { name: 'FF', exact: true }).click();
   await page.getByRole('button', { name: 'Sure?', exact: true }).click();
   await expect(page.getByText('SURRENDERED', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: /900001C · A Walk Through the Array/ }).first().click();
   await expect(page.getByText('Approach', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('implementation', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
   await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);
   if (page.viewportSize()!.width < 900) {

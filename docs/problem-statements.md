@@ -72,6 +72,14 @@ picker without `DATABASE_URL` can use the provider directly, without persistence
 
 ## Statement features
 
+Codeforces problem tags appear above the statement by default as hints, including
+in live ranked matches and match review. Picks reuse their existing API metadata;
+statements with only a saved problem ID load tags through `/api/tags`, using the
+existing cached problemset API. Tags are also included in Problem and Coach
+copies. Tag lookup failures leave the statement readable and show a quiet
+"Tags unavailable" message. Tags do not change the stored statement HTML or its
+annotation hash.
+
 Sample annotations include a SHA-256 hash of the exact statement HTML. The
 server regenerates older maps, and the browser checks the hash before applying
 line or paragraph positions. Ranked browser caches use a new version so saved

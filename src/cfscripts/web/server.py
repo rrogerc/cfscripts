@@ -9,7 +9,7 @@ from cfscripts.core import ranked
 from cfscripts.core.picker import get_problem_by_level
 from cfscripts.core.statements import ProblemUnavailable
 from cfscripts.lib.api import CACHE_NONE, ApiError
-from cfscripts.lib.contests import get_participations
+from cfscripts.lib.contests import get_participations, get_problems
 from cfscripts.lib.performance import UserPerformanceCalculator
 from cfscripts.lib.rating import get_rating_changes_for_user
 from cfscripts.lib.submissions import get_submissions
@@ -66,6 +66,16 @@ def pick_problem(handle: str, level: int):
         "problem": best,
         "html": html_content
     }
+
+
+@app.get("/api/tags")
+def problem_tags(contest_id: int, index: str):
+    """Codeforces tags for statements that only have a saved problem ID."""
+    for problem in get_problems():
+        if problem.get("contestId") == contest_id and problem["index"] == index:
+            return {"tags": problem.get("tags", [])}
+    raise HTTPException(status_code=404, detail="Problem tags not found")
+
 
 @app.get("/api/participations")
 def participations(handle: str):
