@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, memo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCopy, Check, GraduationCap, Terminal, Sparkles, LoaderCircle } from 'lucide-react';
-import TurndownService from 'turndown';
+import { ClipboardCopy, Check, Terminal, Sparkles, LoaderCircle } from 'lucide-react';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { typesetMath } from './mathjax';
@@ -31,30 +30,6 @@ type LinemapLine = {
   text: string;
 };
 type Linemap = { v: number; lines: LinemapLine[]; para_count: number; statement_hash: string };
-
-// textContent collapses block boundaries — walk the tree and emit \n
-// for each <div>/<p>/<li>/<br> so CF's per-line sample I/O divs and
-// property-title labels survive markdown extraction.
-function blockTextContent(node: Node): string {
-  const BLOCK = new Set(['DIV', 'P', 'LI', 'TR']);
-  const out: string[] = [];
-  const endsWithNL = () => out.length > 0 && out[out.length - 1].endsWith('\n');
-  const walk = (n: Node) => {
-    if (n.nodeType === Node.TEXT_NODE) {
-      out.push(n.textContent || '');
-      return;
-    }
-    if (n.nodeType !== Node.ELEMENT_NODE) return;
-    const el = n as Element;
-    if (el.tagName === 'BR') { out.push('\n'); return; }
-    const isBlock = BLOCK.has(el.tagName);
-    if (isBlock && out.length && !endsWithNL()) out.push('\n');
-    el.childNodes.forEach(walk);
-    if (isBlock && !endsWithNL()) out.push('\n');
-  };
-  walk(node);
-  return out.join('');
-}
 
 function cleanStatementTitle(root: HTMLElement) {
   const title = root.querySelector<HTMLElement>('.header > .title');
@@ -96,130 +71,6 @@ function cleanSampleStarts(root: HTMLElement) {
     }
     pre.dataset.sampleLineOffset = String(skipped);
   });
-}
-
-function htmlToMarkdown(html: string, problem: Problem): string {
-  const td = new TurndownService({
-    headingStyle: 'atx',
-    codeBlockStyle: 'fenced',
-  });
-
-  // Protect TeX from Turndown's Markdown escaping. Read text nodes so HTML
-  // entities are decoded, and leave literal sample/code contents alone.
-  const root = document.createElement('div');
-  root.innerHTML = html;
-  cleanStatementTitle(root);
-  cleanSampleStarts(root);
-  const mathValues: string[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const texts: Text[] = [];
-  while (walker.nextNode()) texts.push(walker.currentNode as Text);
-  for (const node of texts) {
-    if (node.parentElement?.closest('pre, code')) continue;
-    const matches = [...node.data.matchAll(/\$\$\$([\s\S]*?)\$\$\$|\\\[([\s\S]*?)\\\]/g)];
-    if (!matches.length) continue;
-    const fragment = document.createDocumentFragment();
-    let from = 0;
-    for (const match of matches) {
-      fragment.append(node.data.slice(from, match.index));
-      const math = document.createElement('span');
-      math.className = 'cf-export-math';
-      math.dataset.exportMath = String(mathValues.length);
-      // Turndown also collapses text-node whitespace. Keep the original TeX
-      // outside its DOM so display math and TeX line breaks survive intact.
-      mathValues.push(match[1] != null ? `$${match[1]}$` : `\n\n$$\n${match[2]}\n$$\n\n`);
-      math.textContent = 'MATH';
-      fragment.append(math);
-      from = match.index + match[0].length;
-    }
-    fragment.append(node.data.slice(from));
-    node.replaceWith(fragment);
-  }
-  td.addRule('math', {
-    filter: (node) => node.classList?.contains('cf-export-math') ?? false,
-    replacement: (_content, node) => mathValues[Number((node as HTMLElement).dataset.exportMath)] ?? '',
-  });
-
-  // Codeforces .section-title → markdown heading
-  td.addRule('sectionTitle', {
-    filter: (node) => node.classList?.contains('section-title') ?? false,
-    replacement: (_content, node) => `\n## ${(node as HTMLElement).textContent?.trim()}\n\n`,
-  });
-
-  // Problem title
-  td.addRule('title', {
-    filter: (node) =>
-      node.classList?.contains('title') === true &&
-      (node.parentElement?.classList?.contains('header') ?? false),
-    replacement: (_content, node) => `# ${(node as HTMLElement).textContent?.trim()}\n\n`,
-  });
-
-  // Property rows (time limit, memory limit) → "label: value"
-  td.addRule('property', {
-    filter: (node) => {
-      const cl = node.classList;
-      return (cl?.contains('time-limit') || cl?.contains('memory-limit') ||
-              cl?.contains('input-file') || cl?.contains('output-file')) ?? false;
-    },
-    replacement: (_content, node) => {
-      const parts = blockTextContent(node).split('\n').map(s => s.trim()).filter(Boolean);
-      return `${parts.join(': ')}\n`;
-    },
-  });
-
-  // Sample test wrapper — skip the container div, children are handled individually
-  td.addRule('sampleTest', {
-    filter: (node) => node.classList?.contains('sample-test') ?? false,
-    replacement: (content) => content,
-  });
-
-  // Pre blocks inside sample I/O → fenced code blocks
-  td.addRule('samplePre', {
-    filter: (node) => node.nodeName === 'PRE',
-    replacement: (_content, node) => {
-      const text = blockTextContent(node);
-      const fence = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map(m => m[0].length + 1)));
-      return `\n${fence}\n${text}${text.endsWith('\n') ? '' : '\n'}${fence}\n\n`;
-    },
-  });
-
-  // Markdown cannot merge cells. Expand spans into a rectangular grid so
-  // every command/result remains attached to the correct row when copied.
-  td.addRule('table', {
-    filter: 'table',
-    replacement: (_content, node) => {
-      const rows = Array.from((node as HTMLTableElement).rows);
-      const grid: string[][] = rows.map(() => []);
-      rows.forEach((row, r) => {
-        let c = 0;
-        Array.from(row.cells).forEach((cell) => {
-          while (grid[r][c] !== undefined) c++;
-          const value = td.turndown(cell.innerHTML).trim()
-            .replace(/\r?\n+/g, '<br>').replace(/\|/g, '\\|');
-          const rowSpan = cell.rowSpan === 0 ? rows.length - r : cell.rowSpan;
-          for (let dr = 0; dr < rowSpan && r + dr < rows.length; dr++) {
-            for (let dc = 0; dc < cell.colSpan; dc++) {
-              grid[r + dr][c + dc] = value;
-            }
-          }
-          c += cell.colSpan;
-        });
-      });
-      const width = Math.max(0, ...grid.map(row => row.length));
-      if (!width) return '';
-      const line = (row: string[]) => `| ${Array.from({ length: width }, (_, i) => row[i] ?? '').join(' | ')} |`;
-      return `\n\n${[line(grid[0]), line(Array(width).fill('---')), ...grid.slice(1).map(line)].join('\n')}\n\n`;
-    },
-  });
-
-  const md = td.turndown(root);
-
-  // Prepend problem metadata; rating is absent for ranked matches (hidden
-  // until the match resolves), so only include it when known.
-  const rating = problem.rating != null ? ` | Rating: ${problem.rating}` : '';
-  const tags = problem.tags?.length ? `Tags: ${problem.tags.join(', ')}\n\n` : '';
-  const header = `**${problem.contestId}${problem.index}**${rating}\n\n${tags}`;
-  return header + md;
 }
 
 // Sections that belong beside the statement rather than after it. The note
@@ -511,16 +362,6 @@ function wrapClauses(para: HTMLElement) {
   }
 }
 
-const COACH_PROMPT_INSTRUCTIONS = `I'm working on this competitive programming problem and want to think it
-through with you. Coach me — don't just hand over the solution:
-
-- Meet me where I am. If I share code, read it carefully first (even when it
-  already works) and treat it as what I already understand — build from there
-  instead of re-teaching it.
-- Let me drive the reasoning. When something's off, nudge me with a question
-  or counterexample rather than correcting me outright.
-- Only walk through the full solution if I ask.`;
-
 const CPP_TEMPLATE = `#include <bits/stdc++.h>
 
 using namespace std;
@@ -626,8 +467,6 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
   html: string; problem: Problem; annotate: boolean; controls: ReactNode;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const [copied, setCopied] = useState(false);
-  const [coachCopied, setCoachCopied] = useState(false);
   const [nvimCopied, setNvimCopied] = useState(false);
   // Copy buttons live inside the injected markup, so they are portaled into
   // the sample titles found after each injection rather than rendered inline.
@@ -1001,21 +840,6 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
     return () => cleanups.forEach((fn) => fn());
   }, [html, linemap]);
 
-  const copyMarkdown = async () => {
-    const md = htmlToMarkdown(html, { ...problem, tags });
-    await navigator.clipboard.writeText(md);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const copyCoachPrompt = async () => {
-    const md = htmlToMarkdown(html, { ...problem, tags });
-    const prompt = `${COACH_PROMPT_INSTRUCTIONS}\n\n# Problem\n${md}\n\nLet's start: paste whatever code you've got and I'll work from it — otherwise, tell me how you're reading the problem.\n`;
-    await navigator.clipboard.writeText(prompt);
-    setCoachCopied(true);
-    setTimeout(() => setCoachCopied(false), 2000);
-  };
-
   // Seed the file with the template (only when it doesn't exist yet — never
   // clobber in-progress work), then open it. One paste starts the problem.
   const copyNvim = async () => {
@@ -1028,9 +852,9 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      {/* Problem Header Details — centered: badge row, then action row */}
+      {/* Problem actions on the first row, statement view on the second. */}
       <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800 space-y-3">
-        <div className="flex items-center justify-center gap-2 flex-wrap text-sm font-medium text-slate-500 dark:text-slate-400">
+        <div role="group" aria-label="Problem actions" className="flex items-center justify-center gap-1.5 flex-wrap text-sm font-medium text-slate-500 dark:text-slate-400">
           <a
             href={`https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`}
             target="_blank"
@@ -1040,43 +864,29 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
             Problem page
           </a>
           <a
-            href={`https://codeforces.com/contest/${problem.contestId}`}
+            href={`https://codeforces.com/contest/${problem.contestId}/submit`}
             target="_blank"
             rel="noopener noreferrer"
             className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
-            Contest page
+            Submit
           </a>
+          {problem.name && (
+            <button
+              type="button"
+              onClick={copyNvim}
+              title="Copy nvim command"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+            >
+              {nvimCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Terminal className="w-3.5 h-3.5" />}
+              {nvimCopied ? 'Copied' : 'nvim'}
+            </button>
+          )}
           {problem.rating != null && (
             <span className={`px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-bold ${ratingColorClass(problem.rating)}`}>
               {problem.rating}
             </span>
           )}
-        </div>
-        <div className="flex items-center justify-center gap-2 flex-wrap">
-            {problem.name && (
-              <button
-                onClick={copyNvim}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-              >
-                {nvimCopied ? <Check className="w-4 h-4 text-green-500" /> : <Terminal className="w-4 h-4" />}
-                {nvimCopied ? 'Copied' : 'nvim'}
-              </button>
-            )}
-            <button
-              onClick={copyMarkdown}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-            >
-              {copied ? <Check className="w-4 h-4 text-green-500" /> : <ClipboardCopy className="w-4 h-4" />}
-              {copied ? 'Copied' : 'Problem'}
-            </button>
-            <button
-              onClick={copyCoachPrompt}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-            >
-              {coachCopied ? <Check className="w-4 h-4 text-green-500" /> : <GraduationCap className="w-4 h-4" />}
-              {coachCopied ? 'Copied' : 'Coach'}
-            </button>
         </div>
         {controls}
       </div>

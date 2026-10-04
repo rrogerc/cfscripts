@@ -25,7 +25,26 @@ async function fitsViewport(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 }
 
-test('simplification preloads before Pick, preserves samples, and copies the selected view', async ({ page }, testInfo) => {
+async function expectProblemActions(page: Page, contestId: number, index: string) {
+  const actions = page.getByRole('group', { name: 'Problem actions' });
+  await expect(actions.getByRole('link', { name: 'Problem page', exact: true }))
+    .toHaveAttribute('href', `https://codeforces.com/problemset/problem/${contestId}/${index}`);
+  await expect(actions.getByRole('link', { name: 'Submit', exact: true }))
+    .toHaveAttribute('href', `https://codeforces.com/contest/${contestId}/submit`);
+  await expect(actions.getByRole('button', { name: 'nvim', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Coach', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Problem', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Contest page', exact: true })).toHaveCount(0);
+  const row = await actions.locator('a, button').evaluateAll(elements => elements.map(element => {
+    const box = element.getBoundingClientRect();
+    return { center: box.y + box.height / 2, bottom: box.bottom };
+  }));
+  expect(Math.max(...row.map(box => box.center)) - Math.min(...row.map(box => box.center))).toBeLessThan(1);
+  const views = await page.getByRole('group', { name: 'Statement view' }).boundingBox();
+  expect(views!.y).toBeGreaterThan(Math.max(...row.map(box => box.bottom)));
+}
+
+test('simplification preloads before Pick and keeps the compact actions and sample copies', async ({ page }, testInfo) => {
   await page.goto('about:blank');
   let calls = 0;
   page.on('request', request => {
@@ -54,12 +73,11 @@ test('simplification preloads before Pick, preserves samples, and copies the sel
   expect(await page.locator('.sample-test pre').allTextContents()).toEqual(inputs);
   await page.getByRole('button', { name: 'Copy sample input' }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('2\n5\n1 2 3 2 1\n4\n2 2 2 2\n');
-  for (const name of ['Problem', 'Coach']) {
-    await page.getByRole('button', { name, exact: true }).click();
-    const copy = await page.evaluate(() => navigator.clipboard.readText());
-    expect(copy).toContain('Minimize the number of operations');
-    expect(copy).not.toContain('This sample problem lets you check');
-  }
+  await expectProblemActions(page, demoProblem.contestId, demoProblem.index);
+  await page.getByRole('button', { name: 'nvim', exact: true }).click();
+  const command = await page.evaluate(() => navigator.clipboard.readText());
+  expect(command).toContain(`nvim "${demoProblem.name}.cpp"`);
+  expect(command).toContain('void solve()');
   await fitsViewport(page);
   await testInfo.attach('simplified-statement', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
   await original.click();
@@ -273,17 +291,10 @@ test('problem reading, tables, and settings fit at every text width', async ({ p
   await testInfo.attach('problem-light', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
 });
 
-test('problem tags are visible by default and included in Problem and Coach copies', async ({ page }) => {
+test('problem tags are visible by default without an extra lookup for picks', async ({ page }) => {
   const lookups: string[] = [];
   page.on('request', request => {
     if (new URL(request.url()).pathname === '/api/tags') lookups.push(request.url());
-  });
-  await page.evaluate(() => {
-    let copied = '';
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
-      writeText: async (text: string) => { copied = text; },
-      readText: async () => copied,
-    } });
   });
   await page.getByRole('button', { name: 'Pick a problem' }).click();
   const tags = page.getByRole('group', { name: 'Problem tags' });
@@ -291,10 +302,6 @@ test('problem tags are visible by default and included in Problem and Coach copi
     await expect(tags.getByText(tag, { exact: true })).toBeVisible();
   }
   expect(lookups).toHaveLength(0);
-  for (const name of ['Problem', 'Coach']) {
-    await page.getByRole('button', { name, exact: true }).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('Tags: greedy, implementation');
-  }
 });
 
 for (const scenario of ['lookup', 'empty', 'unavailable'] as const) {
@@ -326,6 +333,7 @@ test('a ranked match survives tab switches and can be reviewed', async ({ page }
   await page.getByRole('button', { name: 'Queue Up · 25:00', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Simplified', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
+  await expectProblemActions(page, demoProblem.contestId, demoProblem.index);
   await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
@@ -356,6 +364,7 @@ test('a ranked match survives tab switches and can be reviewed', async ({ page }
   await expect(page.getByRole('button', { name: 'Simplified', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
   await expect(page.getByText('Approach', { exact: true })).toBeVisible();
+  await expectProblemActions(page, demoProblem.contestId, demoProblem.index);
   await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('implementation', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
   await expect(page.getByLabel('League of Legends equivalent')).toHaveCount(0);
@@ -448,10 +457,6 @@ for (const [format, input] of Object.entries(sampleFormats)) {
     await expect(page.locator('.input-specification .cf-hot')).toHaveText('Read the two values.');
     await page.getByRole('button', { name: 'Copy sample input' }).click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('2\n  1  2  \n\n4\n');
-    await page.getByRole('button', { name: 'Problem', exact: true }).click();
-    const markdown = await page.evaluate(() => navigator.clipboard.readText());
-    expect(markdown).toContain('```\n2\n  1  2  \n');
-    expect(markdown).toContain('```\n  3\n\n4  \n```');
   });
 }
 

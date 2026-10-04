@@ -14,7 +14,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
-from markdown_it import MarkdownIt
 from playwright.async_api import async_playwright, expect
 
 from cfscripts.core.scraper import get_input_spec_paragraphs, split_clauses
@@ -149,20 +148,11 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
     await root.locator('.cf-tex[data-tex-base="n"]').first.hover()
     await expect(token).to_have_class(re.compile("cf-hot"))
 
-    await page.get_by_role("button", name="Problem", exact=True).click()
-    markdown = await page.evaluate("navigator.clipboard.readText()")
-    assert r"$a_i \le 10^9$" in markdown, markdown
-    assert r"a\_i" not in markdown
-    assert "$$\n\\sum_{i=1}^{n} a_i\n$$" in markdown, markdown
-    assert "1  2  \n" in markdown and "````\n<literal>\n```\n````" in markdown
-    assert '| Limits | Limits | Outcome |' in markdown
-    assert '| $a_i$ | x \\| y | First |' in markdown
-    assert '| $a_i$ | z | Second |' in markdown
-    exported_table = BeautifulSoup(MarkdownIt('commonmark').enable('table').render(markdown), 'html.parser').table
-    assert [len(row.select('th, td')) for row in exported_table.select('tr')] == [3, 3, 3]
-    await page.get_by_role("button", name="Coach", exact=True).click()
-    coach = await page.evaluate("navigator.clipboard.readText()")
-    assert markdown in coach and "Coach me" in coach
+    actions = page.get_by_role("group", name="Problem actions")
+    await expect(actions.get_by_role("link", name="Submit", exact=True)).to_have_attribute(
+        "href", "https://codeforces.com/contest/2049/submit")
+    await expect(page.get_by_role("button", name="Coach", exact=True)).to_have_count(0)
+    await expect(page.get_by_role("button", name="Problem", exact=True)).to_have_count(0)
     await page.get_by_role("button", name="nvim", exact=True).click()
     command = await page.evaluate("navigator.clipboard.readText()")
     assert '[ -e "Test Problem.cpp" ] ||' in command and 'nvim "Test Problem.cpp"' in command
@@ -224,8 +214,7 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
     await page.clock.fast_forward(5000)
     await page.get_by_role("button", name="Queue Up · 25:00", exact=True).click()
     await expect(page.get_by_text("25:00", exact=True)).to_be_visible()
-    await page.get_by_role("button", name="Problem", exact=True).click()
-    assert "Rating:" not in await page.evaluate("navigator.clipboard.readText()")
+    await expect(page.get_by_role("group", name="Problem actions")).not_to_contain_text("1300")
     await page.evaluate("localStorage.removeItem('rankedHtml:v3:Exonerate:17')")
     await page.reload(wait_until="domcontentloaded")
     await page.get_by_role("button", name="Ranked", exact=True).click()
@@ -319,22 +308,9 @@ async def exercise_tables(browser, url, width):
     await page.get_by_role('button', name='Copy sample input').click()
     sample = original.select_one('.sample-test .input pre').get_text().lstrip('\n')
     assert await page.evaluate('navigator.clipboard.readText()') == sample + ('' if sample.endswith('\n') else '\n')
-    await page.get_by_role('button', name='Problem', exact=True).click()
-    markdown = await page.evaluate('navigator.clipboard.readText()')
-    assert "| Command | Constraint | Result | Case | Update | Jury's response |" in markdown, markdown
-    assert '| Solution | Jury | Explanation |' in markdown, markdown
-    exported = BeautifulSoup(MarkdownIt('commonmark').enable('table').render(markdown), 'html.parser')
-    assert [len(table.select('tr')) for table in exported.select('table')] == [8, 11]
-    command_rows = exported.select('table')[0].select('tbody tr')
-    for i in range(0, 6, 2):
-        assert command_rows[i].td.get_text() == command_rows[i + 1].td.get_text()
-        assert len(command_rows[i + 1].select('td')) == 6
-    assert r'$-10^{18} \le y \le 10^{18}$' in markdown
-    await page.get_by_role('button', name='Coach', exact=True).click()
-    assert markdown in await page.evaluate('navigator.clipboard.readText()')
     assert not errors, errors
     print(json.dumps({'width': width, 'tables': 2, 'merged_cells': 9, 'themes': 2,
-                      'copy': 'Problem/Coach/sample', 'passed': True}), flush=True)
+                      'copy': 'sample', 'passed': True}), flush=True)
     await context.close()
 
 

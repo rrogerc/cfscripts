@@ -72,6 +72,10 @@ picker without `DATABASE_URL` can use the provider directly, without persistence
 
 ## Statement features
 
+The statement toolbar has two rows: Problem page, Submit, and nvim above the
+Original / Simplified switch. Submit opens the current contest's `/submit` page.
+The nvim button copies the editor command; sample buttons copy the input.
+
 The **Original / Simplified** switch is available in picks, live ranked matches,
 and match review. Simplified is selected by default and loads automatically;
 the original remains readable while generation is pending or fails. Its prompt
@@ -91,8 +95,8 @@ request is generating the same problem, results are checked every two seconds.
 Samples, resource limits, tables, and diagrams are copied from the saved original
 HTML. Interaction and other unusual contract sections remain verbatim. Generated
 prose uses the existing safe Markdown renderer and preserves Codeforces math.
-Problem and Coach copies use the displayed view. Sample annotations apply only
-to the original, because their paragraph positions do not fit rewritten prose.
+Sample annotations apply only to the original, because their paragraph positions
+do not fit rewritten prose.
 
 `POST /api/restate?contest_id=2049&index=C` uses the same Gemini / Vercel AI Gateway
 credentials as the existing AI helpers (`GEMINI_API_KEY`, or
@@ -106,9 +110,8 @@ wording. Requesting a restatement does not pause the ranked clock.
 Codeforces problem tags appear above the statement by default as hints, including
 in live ranked matches and match review. Picks reuse their existing API metadata;
 statements with only a saved problem ID load tags through `/api/tags`, using the
-existing cached problemset API. Tags are also included in Problem and Coach
-copies. Tag lookup failures leave the statement readable and show a quiet
-"Tags unavailable" message. Tags do not change the stored statement HTML or its
+existing cached problemset API. Tag lookup failures leave the statement readable
+and show a quiet "Tags unavailable" message. Tags do not change the stored statement HTML or its
 annotation hash.
 
 Sample annotations include a SHA-256 hash of the exact statement HTML. The
@@ -117,10 +120,8 @@ line or paragraph positions. Ranked browser caches use a new version so saved
 matches reload the statement after the source change.
 
 Tables have visible cell borders, padding, alignment and a keyboard-accessible
-horizontal scroll region on narrow screens. Problem and Coach exports expand
-merged cells into rectangular Markdown tables. Model prompts also retain cell
+horizontal scroll region on narrow screens. Model prompts retain cell
 boundaries and repeat merged values so commands stay attached to their results.
-Exports protect TeX from Markdown escaping and preserve display equations.
 Sample copy buttons capture the original input before hover
 annotations modify the DOM, preserving whitespace and excluding explanations.
 Hovering an input line highlights just that row and its test case's output;
@@ -160,4 +161,4 @@ delayed MathJax loading, stale annotation rejection, hover/tap highlighting,
 all copy controls, timer pause/resume/reset/expiry, problem changes, tab
 switching, queue errors, match reopening and solution review. Both real tables
 are checked in light/dark themes at every text-width setting, including merged
-cells, math, horizontal scrolling and Problem/Coach/sample copies.
+cells, math, horizontal scrolling and sample-input copies.
