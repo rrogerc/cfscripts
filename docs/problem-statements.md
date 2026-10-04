@@ -81,6 +81,13 @@ limits, and exceptional outputs. It receives the statement alone and is
 instructed to add no solution hints or algorithms. A second model pass checks
 the draft against the original and corrects omissions before it is cached.
 
+The picker starts simplification as soon as its problem preload completes on
+app launch or a level change, before Pick is pressed. The view shares that
+request and its polling; changing views does not restart generation. A small
+browser cache keeps validated results for the exact source HTML, so ready
+preloads render immediately. Failed preloads can retry when opened. When another
+request is generating the same problem, results are checked every two seconds.
+
 Samples, resource limits, tables, and diagrams are copied from the saved original
 HTML. Interaction and other unusual contract sections remain verbatim. Generated
 prose uses the existing safe Markdown renderer and preserves Codeforces math.

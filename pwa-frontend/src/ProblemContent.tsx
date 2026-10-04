@@ -6,6 +6,7 @@ import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { typesetMath } from './mathjax';
 import { attachSampleCaseHighlight } from './sampleCases';
+import { cachedRestatement, loadRestatement } from './restatements';
 
 export type Problem = {
   contestId: number;
@@ -548,46 +549,22 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   const [attempt, setAttempt] = useState(0);
   const key = `${problem.contestId}/${problem.index}`;
   const current = result?.key === key && result.source === html ? result : null;
-  const simplifiedHtml = current?.html;
-  const error = current?.error;
+  const simplifiedHtml = current?.html ?? cachedRestatement(problem, html);
+  const error = simplifiedHtml ? undefined : current?.error;
 
   useEffect(() => {
     if (!simplified || simplifiedHtml) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    let polls = 0;
-    const digest = crypto.subtle.digest('SHA-256', new TextEncoder().encode(html))
-      .then(buffer => Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2, '0')).join(''));
-    const load = async () => {
-      try {
-        const data = await fetchJson(
-          `${API_BASE_URL}/api/restate?contest_id=${problem.contestId}&index=${encodeURIComponent(problem.index)}`,
-          { method: 'POST', signal: controller.signal },
-        );
-        if (controller.signal.aborted) return;
-        const restatement = data.restatement;
-        if (restatement?.status === 'done' && typeof restatement.html === 'string' && restatement.html) {
-          if (restatement.statement_hash !== await digest) {
-            throw new Error('The original statement has changed. Reload the problem to simplify it.');
-          }
-          if (!controller.signal.aborted) setResult({ key, source: html, html: restatement.html });
-        } else if (restatement?.status === 'pending' && polls++ < 75) {
-          timer = setTimeout(load, 4000);
-        } else {
-          throw new Error('Simplification is taking longer than expected. Please try again.');
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) setResult({
-          key, source: html,
-          error: err instanceof Error ? err.message : 'Could not simplify this problem.',
-        });
-      }
-    };
-    load();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
+    let cancelled = false;
+    loadRestatement({ contestId: problem.contestId, index: problem.index }, html).then(content => {
+      if (!cancelled) setResult({ key, source: html, html: content });
+    }).catch(err => {
+      if (!cancelled) setResult({
+        key, source: html,
+        error: err instanceof Error ? err.message : 'Could not simplify this problem.',
+      });
+    });
+    // Keep the shared preload running when a view changes or unmounts.
+    return () => { cancelled = true; };
   }, [simplified, simplifiedHtml, attempt, html, key, problem.contestId, problem.index]);
 
   const controls = (

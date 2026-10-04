@@ -6,6 +6,7 @@ import { ProblemContent, type Problem } from './ProblemContent';
 import { ProblemTimer } from './ProblemTimer';
 import { RatingView } from './RatingView';
 import { RankedView } from './RankedView';
+import { preloadRestatement } from './restatements';
 
 type PickData = { problem: Problem; html: string };
 
@@ -86,7 +87,9 @@ function App() {
   };
 
   const requestPick = async (lvl: number): Promise<PickData> => {
-    return fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
+    const data: PickData = await fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
+    preloadRestatement(data.problem, data.html);
+    return data;
   };
 
   // Prefetch the pick so tapping the button renders instantly. Safe because
