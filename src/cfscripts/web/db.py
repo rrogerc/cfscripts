@@ -59,6 +59,17 @@ CREATE TABLE IF NOT EXISTS problem_statements (
     fetched_ts BIGINT NOT NULL,
     PRIMARY KEY (contest_id, problem_index)
 );
+CREATE TABLE IF NOT EXISTS problem_restatements (
+    contest_id INTEGER NOT NULL,
+    problem_index TEXT NOT NULL,
+    status TEXT NOT NULL,
+    content_html TEXT,
+    statement_hash TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    model TEXT,
+    updated_ts BIGINT NOT NULL,
+    PRIMARY KEY (contest_id, problem_index)
+);
 """
 
 _schema_ready = False
@@ -153,6 +164,7 @@ def fetch_match(conn, handle, match_id):
 # these fixed names.
 _SOLUTIONS = "problem_solutions"
 _LINEMAPS = "problem_linemaps"
+_RESTATEMENTS = "problem_restatements"
 
 
 def _get_cached(conn, table, contest_id, problem_index):
@@ -256,6 +268,60 @@ def finish_linemap(conn, contest_id, problem_index, content_json, model, now):
     ).fetchone()
     conn.commit()
     return row
+
+
+def get_restatement(conn, contest_id, problem_index):
+    return _get_cached(conn, _RESTATEMENTS, contest_id, problem_index)
+
+
+def claim_restatement(conn, contest_id, problem_index, html_hash, version, now, stale_before):
+    """Atomically refresh stale content or claim an abandoned generation."""
+    row = conn.execute(
+        """
+        INSERT INTO problem_restatements
+            (contest_id, problem_index, status, statement_hash, version, updated_ts)
+        VALUES (%s, %s, 'pending', %s, %s, %s)
+        ON CONFLICT (contest_id, problem_index) DO UPDATE
+            SET status = 'pending', content_html = NULL, model = NULL,
+                statement_hash = EXCLUDED.statement_hash,
+                version = EXCLUDED.version, updated_ts = EXCLUDED.updated_ts
+            WHERE (problem_restatements.status = 'done' AND
+                   (problem_restatements.statement_hash != EXCLUDED.statement_hash
+                    OR problem_restatements.version != EXCLUDED.version))
+               OR (problem_restatements.status = 'pending'
+                   AND problem_restatements.updated_ts < %s)
+        RETURNING *
+        """,
+        (contest_id, problem_index, html_hash, version, now, stale_before),
+    ).fetchone()
+    conn.commit()
+    return row
+
+
+def finish_restatement(conn, contest_id, problem_index, claimed_ts, content_html, model, now):
+    row = conn.execute(
+        """
+        UPDATE problem_restatements
+        SET status = 'done', content_html = %s, model = %s, updated_ts = %s
+        WHERE contest_id = %s AND problem_index = %s
+          AND status = 'pending' AND updated_ts = %s
+        RETURNING *
+        """,
+        (content_html, model, now, contest_id, problem_index, claimed_ts),
+    ).fetchone()
+    conn.commit()
+    return row
+
+
+def release_restatement(conn, contest_id, problem_index, claimed_ts):
+    # An expired worker must not delete a newer worker's generation lock.
+    conn.execute(
+        """DELETE FROM problem_restatements
+        WHERE contest_id = %s AND problem_index = %s
+          AND status = 'pending' AND updated_ts = %s""",
+        (contest_id, problem_index, claimed_ts),
+    )
+    conn.commit()
 
 
 def finalize_match(conn, match_id, result, elo_after, solved_ts):

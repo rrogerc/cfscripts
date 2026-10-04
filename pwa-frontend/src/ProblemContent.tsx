@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCopy, Check, GraduationCap, Terminal } from 'lucide-react';
+import { ClipboardCopy, Check, GraduationCap, Terminal, Sparkles, LoaderCircle } from 'lucide-react';
 import TurndownService from 'turndown';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
@@ -540,8 +540,114 @@ int main() {
 }
 `;
 
-/** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
+type Restatement = { key: string; source: string; html?: string; error?: string };
+
 export const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: Problem }) {
+  const [simplified, setSimplified] = useState(false);
+  const [result, setResult] = useState<Restatement | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const key = `${problem.contestId}/${problem.index}`;
+  const current = result?.key === key && result.source === html ? result : null;
+  const simplifiedHtml = current?.html;
+  const error = current?.error;
+
+  useEffect(() => {
+    if (!simplified || simplifiedHtml) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let polls = 0;
+    const digest = crypto.subtle.digest('SHA-256', new TextEncoder().encode(html))
+      .then(buffer => Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2, '0')).join(''));
+    const load = async () => {
+      try {
+        const data = await fetchJson(
+          `${API_BASE_URL}/api/restate?contest_id=${problem.contestId}&index=${encodeURIComponent(problem.index)}`,
+          { method: 'POST', signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        const restatement = data.restatement;
+        if (restatement?.status === 'done' && typeof restatement.html === 'string' && restatement.html) {
+          if (restatement.statement_hash !== await digest) {
+            throw new Error('The original statement has changed. Reload the problem to simplify it.');
+          }
+          if (!controller.signal.aborted) setResult({ key, source: html, html: restatement.html });
+        } else if (restatement?.status === 'pending' && polls++ < 75) {
+          timer = setTimeout(load, 4000);
+        } else {
+          throw new Error('Simplification is taking longer than expected. Please try again.');
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) setResult({
+          key, source: html,
+          error: err instanceof Error ? err.message : 'Could not simplify this problem.',
+        });
+      }
+    };
+    load();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [simplified, simplifiedHtml, attempt, html, key, problem.contestId, problem.index]);
+
+  const controls = (
+    <div className="space-y-2">
+      <div role="group" aria-label="Statement view" className="flex justify-center gap-2">
+        {(['Original', 'Simplified'] as const).map(view => (
+          <button
+            key={view}
+            type="button"
+            aria-pressed={view === 'Simplified' ? simplified : !simplified}
+            onClick={() => {
+              setSimplified(view === 'Simplified');
+              if (view === 'Simplified' && error) {
+                setResult(null);
+                setAttempt(value => value + 1);
+              }
+            }}
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              (view === 'Simplified' ? simplified : !simplified)
+                ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            {view === 'Simplified' && <Sparkles className="h-4 w-4" />}
+            {view}
+          </button>
+        ))}
+      </div>
+      {simplified && !simplifiedHtml && !error && (
+        <p role="status" className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+          <LoaderCircle className="h-4 w-4 animate-spin" /> Simplifying the statement…
+        </p>
+      )}
+      {simplified && error && (
+        <div role="alert" className="text-center text-sm text-red-600 dark:text-red-400">
+          <p>{error}</p>
+          <button type="button" className="mt-1 underline" onClick={() => {
+            setResult(null);
+            setAttempt(value => value + 1);
+          }}>Retry simplification</button>
+        </div>
+      )}
+      {simplified && simplifiedHtml && (
+        <p className="text-center text-xs text-slate-500 dark:text-slate-400">AI restatement · Samples, tables, and diagrams preserved</p>
+      )}
+    </div>
+  );
+
+  return <StatementContent
+    html={simplified && simplifiedHtml ? simplifiedHtml : html}
+    problem={problem}
+    annotate={!(simplified && simplifiedHtml)}
+    controls={controls}
+  />;
+});
+
+/** Isolated from parent re-renders so MathJax DOM mutations are never disturbed. */
+const StatementContent = memo(function StatementContent({ html, problem, annotate, controls }: {
+  html: string; problem: Problem; annotate: boolean; controls: ReactNode;
+}) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [coachCopied, setCoachCopied] = useState(false);
@@ -628,8 +734,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   // the opening paragraphs are being read. Failures just mean no hover
   // annotations — the statement itself is untouched.
   const [annotation, setAnnotation] = useState<{ html: string; map: Linemap } | null>(null);
-  const linemap = annotation?.html === html ? annotation.map : null;
+  const linemap = annotate && annotation?.html === html ? annotation.map : null;
   useEffect(() => {
+    if (!annotate) return;
     setAnnotation(null);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -665,7 +772,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [html, problem.contestId, problem.index]);
+  }, [html, problem.contestId, problem.index, annotate]);
 
   // Decorate the DOM once both the statement and the map are in. Pointing at
   // a sample value highlights the clause that defines it, every mention of
@@ -994,6 +1101,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
               {coachCopied ? 'Copied' : 'Coach'}
             </button>
         </div>
+        {controls}
       </div>
 
       <div

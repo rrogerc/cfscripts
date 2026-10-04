@@ -72,6 +72,29 @@ picker without `DATABASE_URL` can use the provider directly, without persistence
 
 ## Statement features
 
+The **Original / Simplified** switch is available in picks, live ranked matches,
+and match review. Simplification runs only when requested. Its prompt asks for
+a compact Task, Input, Output, and Constraints specification, removing story
+and repetition while retaining definitions, operation rules, bounds, aggregate
+limits, and exceptional outputs. It receives the statement alone and is
+instructed to add no solution hints or algorithms. A second model pass checks
+the draft against the original and corrects omissions before it is cached.
+
+Samples, resource limits, tables, and diagrams are copied from the saved original
+HTML. Interaction and other unusual contract sections remain verbatim. Generated
+prose uses the existing safe Markdown renderer and preserves Codeforces math.
+Problem and Coach copies use the displayed view. Sample annotations apply only
+to the original, because their paragraph positions do not fit rewritten prose.
+
+`POST /api/restate?contest_id=2049&index=C` uses the same Gemini / Vercel AI Gateway
+credentials as the existing AI helpers (`GEMINI_API_KEY`, or
+`AI_GATEWAY_API_KEY` / `VERCEL_OIDC_TOKEN`; optional `LLM_MODEL`). Restatements are
+saved separately in `problem_restatements`, keyed by problem, with the original
+statement hash and prompt version. Changed statements or prompts regenerate;
+concurrent requests share a generation lock. Failures leave the original readable
+and offer a retry. The switch back to Original remains available for checking AI
+wording. Requesting a restatement does not pause the ranked clock.
+
 Codeforces problem tags appear above the statement by default as hints, including
 in live ranked matches and match review. Picks reuse their existing API metadata;
 statements with only a saved problem ID load tags through `/api/tags`, using the

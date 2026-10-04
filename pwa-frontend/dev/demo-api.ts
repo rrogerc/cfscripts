@@ -1,5 +1,7 @@
 // Shared by the local preview server and isolated browser tests.
 // These synthetic contest IDs keep sample results separate from real cached results.
+import { createHash } from 'node:crypto';
+
 export const demoProblem = {
   contestId: 900001, index: 'C', rating: 1500, name: 'A Walk Through the Array',
   tags: ['greedy', 'implementation'],
@@ -41,6 +43,12 @@ export const demoHtml = `
   </div>
 </div>`;
 
+export const demoRestatementHtml = demoHtml
+  .replace(/<div><p>You are given[\s\S]*?<\/div>/, `<div><div class="section-title">Task</div>
+    <p>Given an integer array, repeatedly replace two adjacent elements with their sum.
+    Minimize the number of operations needed to make all remaining elements equal.</p></div>`)
+  .replace('<p>End of sample statement.</p>', '');
+
 type ActiveMatch = {
   id: number; contest_id: number; problem_index: string; problem_name: string;
   start_ts: number; deadline_ts: number;
@@ -70,7 +78,14 @@ export function createDemoApi() {
         body = { tags: demoProblem.tags };
         break;
       case 'GET /api/linemap':
+      case 'POST /api/linemap':
         body = { linemap: null };
+        break;
+      case 'POST /api/restate':
+        body = { restatement: {
+          status: 'done', html: demoRestatementHtml, v: 1,
+          statement_hash: createHash('sha256').update(demoHtml).digest('hex'),
+        } };
         break;
       case 'GET /api/participations':
         body = { official_rating: 1537, participations: [{

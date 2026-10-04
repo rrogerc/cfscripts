@@ -2,7 +2,7 @@ import json
 from time import time
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from cfscripts.core import ranked
@@ -13,7 +13,7 @@ from cfscripts.lib.contests import get_participations, get_problems
 from cfscripts.lib.performance import UserPerformanceCalculator
 from cfscripts.lib.rating import get_rating_changes_for_user
 from cfscripts.lib.submissions import get_submissions
-from cfscripts.web import db, solutions
+from cfscripts.web import db, restatements, solutions
 from cfscripts.web.statements import get_problem_html, statement_hash
 
 app = FastAPI()
@@ -391,6 +391,54 @@ def linemap(contest_id: int, index: str):
             conn, contest_id, index, json.dumps(data), model, int(time())
         )
     return {"linemap": _linemap_payload(row)}
+
+
+def _restatement_payload(row):
+    if row is None:
+        return None
+    return {
+        "status": row["status"],
+        "html": row["content_html"] if row["status"] == "done" else None,
+        "statement_hash": row["statement_hash"],
+        "v": row["version"],
+    }
+
+
+@app.post("/api/restate")
+def restate_problem(contest_id: int = Query(gt=0), index: str = Query(pattern=r"^[A-Z][0-9]?$")):
+    """Restate a validated problem on demand, caching by source and prompt."""
+    html = get_problem_html(contest_id, index)
+    html_hash = statement_hash(html)
+    with db.connect() as conn:
+        row = db.get_restatement(conn, contest_id, index)
+        if (row is not None and row["status"] == "done"
+                and row["statement_hash"] == html_hash
+                and row["version"] == restatements.RESTATEMENT_VERSION):
+            return {"restatement": _restatement_payload(row)}
+        now = int(time())
+        # Allow the draft and source review their retries/fallbacks before
+        # another request considers the generation abandoned.
+        claimed = db.claim_restatement(
+            conn, contest_id, index, html_hash,
+            restatements.RESTATEMENT_VERSION, now, now - 3600,
+        )
+        if claimed is None:
+            return {"restatement": _restatement_payload(db.get_restatement(conn, contest_id, index))}
+
+    try:
+        content_html, model = restatements.generate(html)
+    except Exception:
+        with db.connect() as conn:
+            db.release_restatement(conn, contest_id, index, claimed["updated_ts"])
+        raise
+
+    with db.connect() as conn:
+        row = db.finish_restatement(
+            conn, contest_id, index, claimed["updated_ts"], content_html, model, int(time()),
+        )
+        if row is None:
+            row = db.get_restatement(conn, contest_id, index)
+    return {"restatement": _restatement_payload(row)}
 
 
 @app.post("/api/ranked/surrender")

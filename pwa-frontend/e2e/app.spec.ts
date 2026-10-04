@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { createDemoApi, demoHtml, demoProblem } from '../dev/demo-api';
+import { createDemoApi, demoHtml, demoProblem, demoRestatementHtml } from '../dev/demo-api';
 
 test.beforeEach(async ({ page }, testInfo) => {
   const api = createDemoApi();
@@ -24,6 +24,134 @@ test.beforeEach(async ({ page }, testInfo) => {
 async function fitsViewport(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 }
+
+test('simplification is opt-in, preserves samples, and copies the selected view', async ({ page }, testInfo) => {
+  let calls = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/restate') calls++;
+  });
+  await page.evaluate(() => {
+    let copied = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: async (text: string) => { copied = text; }, readText: async () => copied,
+    } });
+  });
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  const original = page.getByRole('button', { name: 'Original', exact: true });
+  const simplified = page.getByRole('button', { name: 'Simplified', exact: true });
+  await expect(original).toHaveAttribute('aria-pressed', 'true');
+  expect(calls).toBe(0);
+  const inputs = await page.locator('.sample-test pre').allTextContents();
+  await simplified.click();
+  await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
+  await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
+  await expect(page.getByText('This sample problem lets you check', { exact: false })).toHaveCount(0);
+  expect(await page.locator('.sample-test pre').allTextContents()).toEqual(inputs);
+  await page.getByRole('button', { name: 'Copy sample input' }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('2\n5\n1 2 3 2 1\n4\n2 2 2 2\n');
+  for (const name of ['Problem', 'Coach']) {
+    await page.getByRole('button', { name, exact: true }).click();
+    const copy = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copy).toContain('Minimize the number of operations');
+    expect(copy).not.toContain('This sample problem lets you check');
+  }
+  await fitsViewport(page);
+  await testInfo.attach('simplified-statement', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
+  await original.click();
+  await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
+  await simplified.click();
+  await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
+  expect(calls).toBe(1);
+});
+
+test('simplification errors keep the original readable and allow retry', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/restate?**', route => {
+    calls++;
+    return route.fulfill(calls === 1
+      ? { status: 502, json: { detail: 'Model temporarily unavailable' } }
+      : { json: { restatement: { status: 'done', html: demoRestatementHtml,
+        statement_hash: createHash('sha256').update(demoHtml).digest('hex') } } });
+  });
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Model temporarily unavailable');
+  await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry simplification' }).click();
+  await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(calls).toBe(2);
+});
+
+test('pending simplification polls while showing the original', async ({ page }) => {
+  await page.clock.install();
+  let calls = 0;
+  await page.route('**/api/restate?**', route => {
+    calls++;
+    return route.fulfill({ json: { restatement: calls === 1 ? { status: 'pending' } : {
+      status: 'done', html: demoRestatementHtml,
+      statement_hash: createHash('sha256').update(demoHtml).digest('hex'),
+    } } });
+  });
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
+  await expect.poll(() => calls).toBe(1);
+  await expect(page.getByRole('status').filter({ hasText: 'Simplifying the statement' })).toBeVisible();
+  await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
+  await page.clock.runFor(4500);
+  await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
+  expect(calls).toBe(2);
+});
+
+test('a restatement from a different source is rejected', async ({ page }) => {
+  await page.route('**/api/restate?**', route => route.fulfill({ json: { restatement: {
+    status: 'done', html: demoRestatementHtml, statement_hash: 'previous-statement',
+  } } }));
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('The original statement has changed');
+  await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
+});
+
+test('changing problems during simplification never displays the previous result', async ({ page }) => {
+  const nextHtml = demoHtml.replaceAll('A Walk Through the Array', 'Second problem');
+  const nextPure = demoRestatementHtml.replaceAll('A Walk Through the Array', 'Second problem')
+    .replace('Minimize the number of operations', 'Find the fewest operations');
+  let picks = 0;
+  await page.route('**/api/pick?**', route => {
+    picks++;
+    return route.fulfill({ json: picks === 1 ? { problem: demoProblem, html: demoHtml } : {
+      problem: { ...demoProblem, contestId: 900002, name: 'Second problem' }, html: nextHtml,
+    } });
+  });
+  let release!: () => void;
+  const waitForRelease = new Promise<void>(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route('**/api/restate?**', async route => {
+    calls++;
+    const first = new URL(route.request().url()).searchParams.get('contest_id') === '900001';
+    if (first) await waitForRelease;
+    await route.fulfill({ json: { restatement: {
+      status: 'done', html: first ? demoRestatementHtml : nextPure,
+      statement_hash: createHash('sha256').update(first ? demoHtml : nextHtml).digest('hex'),
+    } } }).catch(() => { /* Switching problems aborts the previous request. */ });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
+  await expect.poll(() => calls).toBe(1);
+  await page.getByRole('combobox', { name: 'Level', exact: true }).selectOption('16');
+  await page.getByRole('button', { name: 'Pick again', exact: true }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText('Second problem');
+  // Some parent flows remount the statement for a new pick; enable the view
+  // if necessary, then resolve the old request after the new one succeeds.
+  const simplified = page.getByRole('button', { name: 'Simplified', exact: true });
+  if (await simplified.getAttribute('aria-pressed') !== 'true') await simplified.click();
+  await expect(page.getByText('Find the fewest operations', { exact: false })).toBeVisible();
+  release();
+  await expect(page.getByText('Minimize the number of operations', { exact: false })).toHaveCount(0);
+  await expect(page.locator('.problem-statement .header .title')).toHaveText('Second problem');
+});
 
 test('navigation and settings remain reachable inside the safe areas', async ({ page }, testInfo) => {
   await expect(page.getByRole('heading', { name: 'CF Picker' })).toBeVisible();
