@@ -25,7 +25,7 @@ async function fitsViewport(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 }
 
-test('simplification is opt-in, preserves samples, and copies the selected view', async ({ page }, testInfo) => {
+test('simplification loads by default, preserves samples, and copies the selected view', async ({ page }, testInfo) => {
   let calls = 0;
   page.on('request', request => {
     if (new URL(request.url()).pathname === '/api/restate') calls++;
@@ -39,10 +39,9 @@ test('simplification is opt-in, preserves samples, and copies the selected view'
   await page.getByRole('button', { name: 'Pick a problem' }).click();
   const original = page.getByRole('button', { name: 'Original', exact: true });
   const simplified = page.getByRole('button', { name: 'Simplified', exact: true });
-  await expect(original).toHaveAttribute('aria-pressed', 'true');
-  expect(calls).toBe(0);
+  await expect(simplified).toHaveAttribute('aria-pressed', 'true');
+  await expect(original).toHaveAttribute('aria-pressed', 'false');
   const inputs = await page.locator('.sample-test pre').allTextContents();
-  await simplified.click();
   await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
   await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
   await expect(page.getByText('This sample problem lets you check', { exact: false })).toHaveCount(0);
@@ -58,6 +57,7 @@ test('simplification is opt-in, preserves samples, and copies the selected view'
   await fitsViewport(page);
   await testInfo.attach('simplified-statement', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });
   await original.click();
+  await expect(original).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
   await simplified.click();
   await expect(page.getByText('Minimize the number of operations', { exact: false })).toBeVisible();
@@ -74,7 +74,6 @@ test('simplification errors keep the original readable and allow retry', async (
         statement_hash: createHash('sha256').update(demoHtml).digest('hex') } } });
   });
   await page.getByRole('button', { name: 'Pick a problem' }).click();
-  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Model temporarily unavailable');
   await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Retry simplification' }).click();
@@ -94,7 +93,6 @@ test('pending simplification polls while showing the original', async ({ page })
     } } });
   });
   await page.getByRole('button', { name: 'Pick a problem' }).click();
-  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
   await expect.poll(() => calls).toBe(1);
   await expect(page.getByRole('status').filter({ hasText: 'Simplifying the statement' })).toBeVisible();
   await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
@@ -108,7 +106,6 @@ test('a restatement from a different source is rejected', async ({ page }) => {
     status: 'done', html: demoRestatementHtml, statement_hash: 'previous-statement',
   } } }));
   await page.getByRole('button', { name: 'Pick a problem' }).click();
-  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('The original statement has changed');
   await expect(page.getByText('This sample problem lets you check', { exact: false })).toBeVisible();
 });
@@ -138,15 +135,11 @@ test('changing problems during simplification never displays the previous result
   });
   await page.reload();
   await page.getByRole('button', { name: 'Pick a problem' }).click();
-  await page.getByRole('button', { name: 'Simplified', exact: true }).click();
   await expect.poll(() => calls).toBe(1);
   await page.getByRole('combobox', { name: 'Level', exact: true }).selectOption('16');
   await page.getByRole('button', { name: 'Pick again', exact: true }).click();
   await expect(page.locator('.problem-statement .header .title')).toHaveText('Second problem');
-  // Some parent flows remount the statement for a new pick; enable the view
-  // if necessary, then resolve the old request after the new one succeeds.
-  const simplified = page.getByRole('button', { name: 'Simplified', exact: true });
-  if (await simplified.getAttribute('aria-pressed') !== 'true') await simplified.click();
+  await expect(page.getByRole('button', { name: 'Simplified', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Find the fewest operations', { exact: false })).toBeVisible();
   release();
   await expect(page.getByText('Minimize the number of operations', { exact: false })).toHaveCount(0);
@@ -181,6 +174,7 @@ test('navigation and settings remain reachable inside the safe areas', async ({ 
 
 test('problem reading, tables, and settings fit at every text width', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Original', exact: true }).click();
   await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
   await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
   for (const width of ['Cozy', 'Wide', 'Max']) {
@@ -259,6 +253,8 @@ test('a ranked match survives tab switches and can be reviewed', async ({ page }
   await page.getByRole('button', { name: 'Ranked', exact: true }).click();
   await expect(page.getByLabel('Your ranked rank').getByRole('heading')).toBeVisible();
   await page.getByRole('button', { name: 'Queue Up · 25:00', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Simplified', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
   await expect(page.getByText('Ranked match', { exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('greedy', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
@@ -286,6 +282,8 @@ test('a ranked match survives tab switches and can be reviewed', async ({ page }
   await expect(page.getByText('SURRENDERED', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: /900001C · A Walk Through the Array/ }).first().click();
+  await expect(page.getByRole('button', { name: 'Simplified', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('AI restatement', { exact: false })).toBeVisible();
   await expect(page.getByText('Approach', { exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Problem tags' }).getByText('implementation', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your ranked rank')).toHaveCount(0);
@@ -346,6 +344,7 @@ for (const [format, input] of Object.entries(sampleFormats)) {
       } });
     });
     await page.getByRole('button', { name: 'Pick a problem' }).click();
+    await page.getByRole('button', { name: 'Original', exact: true }).click();
     const samples = page.locator('.sample-test pre');
     await expect(samples).toHaveCount(2);
     const startsOnFirstLine = async () => {
@@ -408,6 +407,7 @@ test('test-case hover highlights its answer without coloring whole sample blocks
   } } } }));
   await page.reload();
   await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await page.getByRole('button', { name: 'Original', exact: true }).click();
   const inputs = page.locator('.sample-test .input pre');
   const outputs = page.locator('.sample-test .output pre');
   const tokens = inputs.nth(0).locator('.cf-tok');

@@ -73,8 +73,9 @@ picker without `DATABASE_URL` can use the provider directly, without persistence
 ## Statement features
 
 The **Original / Simplified** switch is available in picks, live ranked matches,
-and match review. Simplification runs only when requested. Its prompt asks for
-a compact Task, Input, Output, and Constraints specification, removing story
+and match review. Simplified is selected by default and loads automatically;
+the original remains readable while generation is pending or fails. Its prompt
+asks for a compact Task, Input, Output, and Constraints specification, removing story
 and repetition while retaining definitions, operation rules, bounds, aggregate
 limits, and exceptional outputs. It receives the statement alone and is
 instructed to add no solution hints or algorithms. A second model pass checks

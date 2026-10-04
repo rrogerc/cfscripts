@@ -543,7 +543,7 @@ int main() {
 type Restatement = { key: string; source: string; html?: string; error?: string };
 
 export const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: Problem }) {
-  const [simplified, setSimplified] = useState(false);
+  const [simplified, setSimplified] = useState(true);
   const [result, setResult] = useState<Restatement | null>(null);
   const [attempt, setAttempt] = useState(0);
   const key = `${problem.contestId}/${problem.index}`;
