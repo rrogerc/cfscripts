@@ -187,7 +187,8 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
     await expect(page.get_by_role("button", name="Pause timer", exact=True)).to_be_disabled()
     await page.get_by_role("button", name="Reset timer to 25 minutes").click()
     await expect(timer).to_have_text("25:00")
-    await page.get_by_role("button", name="Pick again", exact=True).click()
+    async with page.expect_response("**/api/pick?**"):
+        await page.get_by_role("button", name="Pick again", exact=True).click()
     await expect(root).to_have_attribute("data-test-stable", "yes")
 
     # A different problem must replace the typeset DOM and annotations, and

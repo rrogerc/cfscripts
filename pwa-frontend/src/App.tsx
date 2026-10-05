@@ -87,14 +87,13 @@ function App() {
   };
 
   const requestPick = async (lvl: number): Promise<PickData> => {
-    const data: PickData = await fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`);
+    const data: PickData = await fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`, { cache: 'no-store' });
     preloadRestatement(data.problem, data.html);
     return data;
   };
 
-  // Prefetch the pick so tapping the button renders instantly. Safe because
-  // /api/pick is deterministic (newest unsolved problem at the level), so the
-  // prefetched answer is exactly what a live fetch would return.
+  // Preload the initial pick and its restatement. Once a problem has been
+  // shown, each Pick again must recheck submissions: the solved set changes.
   const prefetchRef = useRef<PrefetchEntry | null>(null);
 
   const startPrefetch = (lvl: number) => {
@@ -134,7 +133,7 @@ function App() {
     setError('');
 
     const entry = prefetchRef.current;
-    if (entry && entry.level === level) {
+    if (!problem && entry && entry.level === level && Date.now() - entry.ts < PREFETCH_STALE_MS) {
       if (entry.data) {
         // Prefetch already resolved — show it without any loading flash.
         showProblem(entry.data);
@@ -143,8 +142,6 @@ function App() {
       if (entry.data === undefined) {
         // Still in flight — wait for it instead of firing a duplicate.
         setLoading(true);
-        setProblem(null);
-        setHtml('');
         const data = await entry.promise;
         if (data) {
           showProblem(data);
@@ -155,8 +152,8 @@ function App() {
     }
 
     setLoading(true);
-    setProblem(null);
-    setHtml('');
+    // Keep the existing statement mounted during the check. If it is still
+    // unsolved, returning the same problem preserves its timer and MathJax DOM.
     try {
       const data = await requestPick(level);
       showProblem(data);
@@ -232,6 +229,9 @@ function App() {
             </div>
             {timerProblemKey && <ProblemTimer key={timerProblemKey} />}
           </div>
+          <div className={loading || error ? 'hidden' : ''}>
+            {html && problem && <ProblemContent html={html} problem={problem} />}
+          </div>
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-500" />
@@ -245,9 +245,7 @@ function App() {
                 Try Again
               </button>
             </div>
-          ) : html && problem ? (
-            <ProblemContent html={html} problem={problem} />
-          ) : (
+          ) : html && problem ? null : (
             <div className="flex-1 flex flex-col items-center justify-center py-8">
               <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-8 text-center space-y-7 shadow-sm">
                 <div className="space-y-2">

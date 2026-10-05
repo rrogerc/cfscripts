@@ -385,6 +385,57 @@ test('a failed problem request can be retried', async ({ page }) => {
   await expect(page.locator('.problem-statement .header .title')).toHaveText('A Walk Through the Array');
 });
 
+test('Pick again rechecks accepted submissions at the same level', async ({ page }) => {
+  await page.goto('about:blank');
+  const nextProblem = { ...demoProblem, contestId: 900002, name: 'Next unsolved problem' };
+  const nextHtml = demoHtml.replaceAll(demoProblem.name, nextProblem.name);
+  let accepted = false;
+  let calls = 0;
+  await page.route('**/api/pick?**', route => {
+    calls++;
+    expect(new URL(route.request().url()).searchParams.get('level')).toBe('15');
+    return route.fulfill({ json: accepted
+      ? { problem: nextProblem, html: nextHtml }
+      : { problem: demoProblem, html: demoHtml } });
+  });
+  await page.goto('/');
+  await expect.poll(() => calls).toBe(1);
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText(demoProblem.name);
+  expect(calls).toBe(1);
+
+  accepted = true;
+  await page.getByRole('button', { name: 'Pick again', exact: true }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText(nextProblem.name);
+  expect(calls).toBe(2);
+});
+
+test('a failed Pick again retries fresh instead of restoring the solved preload', async ({ page }) => {
+  await page.goto('about:blank');
+  const nextProblem = { ...demoProblem, contestId: 900002, name: 'Next unsolved problem' };
+  let state: 'initial' | 'offline' | 'accepted' = 'initial';
+  let calls = 0;
+  await page.route('**/api/pick?**', route => {
+    calls++;
+    if (state === 'offline') {
+      return route.fulfill({ status: 503, json: { detail: 'Submission check unavailable' } });
+    }
+    return route.fulfill({ json: state === 'accepted'
+      ? { problem: nextProblem, html: demoHtml.replaceAll(demoProblem.name, nextProblem.name) }
+      : { problem: demoProblem, html: demoHtml } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Pick a problem' }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText(demoProblem.name);
+  state = 'offline';
+  await page.getByRole('button', { name: 'Pick again', exact: true }).click();
+  await expect(page.getByText('Submission check unavailable', { exact: true })).toBeVisible();
+  state = 'accepted';
+  await page.getByRole('button', { name: 'Try Again', exact: true }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText(nextProblem.name);
+  expect(calls).toBe(3);
+});
+
 const sampleFormats = {
   span: '<span>\n2\n  1  2  \n\n4\n</span>',
   br: '<span></span><br>2<br>  1  2  <br><br>4<br>',

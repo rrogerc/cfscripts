@@ -92,6 +92,13 @@ browser cache keeps validated results for the exact source HTML, so ready
 preloads render immediately. Failed preloads can retry when opened. When another
 request is generating the same problem, results are checked every two seconds.
 
+Only the first pick can reuse a preload less than a minute old. Every **Pick
+again** makes a fresh request, bypassing the browser cache; the server checks
+accepted submissions without its short-lived cache, as Ranked does. Newly
+accepted problems are excluded as soon as Codeforces' API reports them. If the
+same problem remains unsolved, its timer and rendered statement are preserved.
+A failed check shows an error, and Retry performs another fresh check.
+
 Samples, resource limits, tables, and diagrams are copied from the saved original
 HTML. Interaction and other unusual contract sections remain verbatim. Generated
 prose uses the existing safe Markdown renderer and preserves Codeforces math.
