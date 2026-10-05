@@ -34,13 +34,13 @@ from cfscripts.web.statements import get_problem_html, statement_hash
 
 GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-GATEWAY_MODEL = "google/gemini-3.7-flash"
-GEMINI_MODEL = "gemini-3.7-flash"
-# Tried when the primary answers "high demand". The newest flash model goes
-# through capacity spikes that last hours, and an annotation that silently
-# doesn't appear is worse than one written by the previous model.
-GATEWAY_FALLBACK_MODEL = "google/gemini-3.6-flash"
-GEMINI_FALLBACK_MODEL = "gemini-3.6-flash"
+GATEWAY_MODEL = "google/gemini-3.8-flash"
+GEMINI_MODEL = "gemini-3.8-flash"
+# Tried in order when the primary answers "high demand". The newest flash
+# model goes through capacity spikes that last hours, and an annotation that
+# silently doesn't appear is worse than one written by a previous model.
+GATEWAY_FALLBACK_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.6-flash")
+GEMINI_FALLBACK_MODELS = ("gemini-3.7-flash", "gemini-3.6-flash")
 _TIMEOUT_SECONDS = 240
 
 
@@ -105,17 +105,17 @@ your idea disagrees with a sample, rethink it.
 
 
 def _endpoint():
-    """Resolve (url, bearer_token, model, fallback_model): direct Gemini API
+    """Resolve (url, bearer_token, model, fallback_models): direct Gemini API
     when a key is set, otherwise the Vercel AI Gateway. Both speak the OpenAI
     chat format, so only the URL, token, and model slug differ. LLM_MODEL
     overrides the primary model on either path."""
     override = os.environ.get("LLM_MODEL")
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
-        return GEMINI_URL, gemini_key, override or GEMINI_MODEL, GEMINI_FALLBACK_MODEL
+        return GEMINI_URL, gemini_key, override or GEMINI_MODEL, GEMINI_FALLBACK_MODELS
     token = os.environ.get("AI_GATEWAY_API_KEY") or os.environ.get("VERCEL_OIDC_TOKEN")
     if token:
-        return GATEWAY_URL, token, override or GATEWAY_MODEL, GATEWAY_FALLBACK_MODEL
+        return GATEWAY_URL, token, override or GATEWAY_MODEL, GATEWAY_FALLBACK_MODELS
     raise SolutionUnavailable(
         "No LLM credentials — set GEMINI_API_KEY (free key at "
         "aistudio.google.com) or enable the Vercel AI Gateway"
@@ -373,11 +373,11 @@ def _post(url, token, model, prompt):
 
 
 def _chat(prompt):
-    """Ask the model, falling back to the previous flash model when the
-    primary is out of capacity. Returns (content, model_that_answered)."""
-    url, token, model, fallback = _endpoint()
+    """Ask the model, falling back through the previous flash models when
+    the primary is out of capacity. Returns (content, model_that_answered)."""
+    url, token, model, fallbacks = _endpoint()
 
-    candidates = [model] + ([fallback] if fallback and fallback != model else [])
+    candidates = [model] + [m for m in fallbacks if m != model]
     for candidate in candidates:
         res = _post(url, token, candidate, prompt)
         if res.status_code == 200:
