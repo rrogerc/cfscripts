@@ -76,7 +76,9 @@ test('simplification preloads before Pick and keeps the compact actions and samp
   await expectProblemActions(page, demoProblem.contestId, demoProblem.index);
   await page.getByRole('button', { name: 'nvim', exact: true }).click();
   const command = await page.evaluate(() => navigator.clipboard.readText());
-  expect(command).toContain(`nvim "${demoProblem.name}.cpp"`);
+  expect(command).toContain('mkdir -p ./codeforces');
+  expect(command).toContain(`[ -e "./codeforces/${demoProblem.name}.cpp" ] ||`);
+  expect(command).toContain(`nvim "./codeforces/${demoProblem.name}.cpp"`);
   expect(command).toContain('void solve()');
   await fitsViewport(page);
   await testInfo.attach('simplified-statement', { body: await page.screenshot({ fullPage: true, scale: 'css' }), contentType: 'image/png' });

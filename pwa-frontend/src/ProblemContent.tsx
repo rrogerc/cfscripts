@@ -843,8 +843,8 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
   // Seed the file with the template (only when it doesn't exist yet — never
   // clobber in-progress work), then open it. One paste starts the problem.
   const copyNvim = async () => {
-    const file = `${problem.name}.cpp`;
-    const cmd = `[ -e "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
+    const file = `./codeforces/${problem.name}.cpp`;
+    const cmd = `mkdir -p ./codeforces\n[ -e "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
     await navigator.clipboard.writeText(cmd);
     setNvimCopied(true);
     setTimeout(() => setNvimCopied(false), 2000);

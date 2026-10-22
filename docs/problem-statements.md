@@ -74,7 +74,9 @@ picker without `DATABASE_URL` can use the provider directly, without persistence
 
 The statement toolbar has two rows: Problem page, Submit, and nvim above the
 Original / Simplified switch. Submit opens the current contest's `/submit` page.
-The nvim button copies the editor command; sample buttons copy the input.
+The nvim button copies a command that creates `./codeforces` if needed, seeds
+`./codeforces/<problem name>.cpp` if missing, and opens it in nvim.
+Sample buttons copy the input.
 
 The **Original / Simplified** switch is available in picks, live ranked matches,
 and match review. Simplified is selected by default and loads automatically;

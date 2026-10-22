@@ -155,7 +155,9 @@ async def exercise(browser, url, width, *, delayed_math=False, stale_map=False):
     await expect(page.get_by_role("button", name="Problem", exact=True)).to_have_count(0)
     await page.get_by_role("button", name="nvim", exact=True).click()
     command = await page.evaluate("navigator.clipboard.readText()")
-    assert '[ -e "Test Problem.cpp" ] ||' in command and 'nvim "Test Problem.cpp"' in command
+    assert 'mkdir -p ./codeforces' in command
+    assert '[ -e "./codeforces/Test Problem.cpp" ] ||' in command
+    assert 'nvim "./codeforces/Test Problem.cpp"' in command
 
     for setting in ["Cozy", "Wide", "Max"]:
         await page.get_by_role("button", name="Settings", exact=True).click()
