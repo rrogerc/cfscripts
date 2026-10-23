@@ -4,7 +4,7 @@ import argparse
 from hashlib import sha256
 from time import time
 
-from cfscripts.core.statements import fetch_statement
+from cfscripts.core.statements import fetch_atcoder_statement, fetch_statement
 from cfscripts.web import db
 
 
@@ -26,6 +26,24 @@ def get_problem_html(contest_id, index, refresh=False):
     statement = fetch_statement(contest_id, index)
     with db.connect() as conn:
         db.save_statement(conn, contest_id, index, statement.html,
+                          statement.source_url, int(time()))
+    return statement.html
+
+
+def get_atcoder_problem_html(contest_id, problem_id, refresh=False):
+    cache_key = f"{contest_id}/{problem_id}"
+    try:
+        with db.connect() as conn:
+            cached = db.get_statement(conn, 0, cache_key)
+    except db.DatabaseNotConfigured:
+        return fetch_atcoder_statement(contest_id, problem_id).html
+
+    if cached is not None and not refresh:
+        return cached["html"]
+
+    statement = fetch_atcoder_statement(contest_id, problem_id)
+    with db.connect() as conn:
+        db.save_statement(conn, 0, cache_key, statement.html,
                           statement.source_url, int(time()))
     return statement.html
 

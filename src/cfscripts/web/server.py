@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from cfscripts.core import ranked
-from cfscripts.core.picker import get_problem_by_level
+from cfscripts.core.picker import get_abc_problem_by_index, get_problem_by_level
 from cfscripts.core.statements import ProblemUnavailable
 from cfscripts.lib.api import CACHE_NONE, ApiError
 from cfscripts.lib.contests import get_participations, get_problems
@@ -14,7 +14,7 @@ from cfscripts.lib.performance import UserPerformanceCalculator
 from cfscripts.lib.rating import get_rating_changes_for_user
 from cfscripts.lib.submissions import get_submissions
 from cfscripts.web import db, restatements, solutions
-from cfscripts.web.statements import get_problem_html, statement_hash
+from cfscripts.web.statements import get_atcoder_problem_html, get_problem_html, statement_hash
 
 app = FastAPI()
 
@@ -65,6 +65,27 @@ def pick_problem(handle: str, level: int):
     return {
         "problem": best,
         "html": html_content
+    }
+
+
+@app.get("/api/atcpick")
+def pick_atcoder_problem(handle: str, index: str):
+    try:
+        best = get_abc_problem_by_index(handle, index, use_solved=True, solved_cache=CACHE_NONE)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if best is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No unsolved AtCoder ABC '{index.strip().upper()}' problem found",
+        )
+
+    html_content = get_atcoder_problem_html(best["contest_id"], best["id"])
+
+    return {
+        "problem": best,
+        "html": html_content,
     }
 
 

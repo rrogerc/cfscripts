@@ -49,6 +49,49 @@ export const demoRestatementHtml = demoHtml
     Minimize the number of operations needed to make all remaining elements equal.</p></div>`)
   .replace('<p>End of sample statement.</p>', '');
 
+export const demoAtcProblem = {
+  id: 'abc900_c',
+  contest_id: 'abc900',
+  contestId: 'abc900',
+  index: 'C',
+  problem_index: 'C',
+  name: 'Self-Stopping Shower',
+  title: 'C. Self-Stopping Shower',
+};
+
+export const demoAtcHtml = `
+<div class="problem-statement">
+  <div class="header">
+    <div class="title">C. Self-Stopping Shower</div>
+    <div class="time-limit"><div class="property-title">time limit per test</div>2 sec</div>
+    <div class="memory-limit"><div class="property-title">memory limit per test</div>1024 MiB</div>
+  </div>
+  <div>
+    <p>Takahashi is using a shower with a button that runs hot water for $$$K$$$ seconds after each press.</p>
+    <div class="section-title">Constraints</div>
+    <ul>
+      <li>$$$1 \\le N \\le 2 \\times 10^5$$$</li>
+      <li>$$$1 \\le K, T \\le 10^9$$$</li>
+    </ul>
+  </div>
+  <div class="input-specification"><div class="section-title">Input</div>
+    <p>The input is given from Standard Input in the following format:</p>
+    <div class="atc-io-pre">$$$N$$$ $$$K$$$ $$$T$$$\n$$$A_1$$$ $$$A_2$$$ $$$\\ldots$$$ $$$A_N$$$</div>
+  </div>
+  <div class="output-specification"><div class="section-title">Output</div>
+    <p>Print the answer in a single line.</p>
+  </div>
+  <div class="sample-tests"><div class="section-title">Examples</div>
+    <div class="sample-test">
+      <div class="input"><div class="title">Input</div><pre><span></span>3 4 20\n6 7 12\n</pre></div>
+      <div class="output"><div class="title">Output</div><pre><span></span>4\n</pre></div>
+    </div>
+  </div>
+  <div class="note"><div class="section-title">Note</div>
+    <p>If Takahashi presses the button at times $$$0, 2, 10, 16$$$, hot water runs continuously until time $$$20$$$.</p>
+  </div>
+</div>`;
+
 type ActiveMatch = {
   id: number; contest_id: number; problem_index: string; problem_name: string;
   start_ts: number; deadline_ts: number;
@@ -73,6 +116,9 @@ export function createDemoApi() {
     switch (`${method} ${pathname}`) {
       case 'GET /api/pick':
         body = { problem: demoProblem, html: demoHtml };
+        break;
+      case 'GET /api/atcpick':
+        body = { problem: demoAtcProblem, html: demoAtcHtml };
         break;
       case 'GET /api/tags':
         body = { tags: demoProblem.tags };

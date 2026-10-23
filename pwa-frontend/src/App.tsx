@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Compass, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { ProblemContent, type Problem } from './ProblemContent';
@@ -19,11 +19,19 @@ type PrefetchEntry = {
   ts: number;
 };
 
+type AbcPrefetchEntry = {
+  index: string;
+  promise: Promise<PickData | null>;
+  data?: PickData | null;
+  ts: number;
+};
+
 const PREFETCH_STALE_MS = 60_000;
 
 const MIN_LEVEL = 8;
 const MAX_LEVEL = 32;
 const LEVELS = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) => i + MIN_LEVEL);
+const ABC_TASKS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'] as const;
 
 function App() {
   const [level, setLevel] = useState<number>(() => {
@@ -31,11 +39,19 @@ function App() {
     return saved ? Number(saved) : 15;
   });
   const handle = 'Exonerate';
-  const [tab, setTab] = useState<'pick' | 'rating' | 'ranked'>('pick');
+  const [tab, setTab] = useState<'pick' | 'abc' | 'rating' | 'ranked'>('pick');
   const [problem, setProblem] = useState<Problem | null>(null);
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [abcTask, setAbcTask] = useState<string>(() => {
+    const saved = localStorage.getItem('abcTask')?.toUpperCase();
+    return saved && (ABC_TASKS as readonly string[]).includes(saved) ? saved : 'C';
+  });
+  const [abcProblem, setAbcProblem] = useState<Problem | null>(null);
+  const [abcHtml, setAbcHtml] = useState<string>('');
+  const [abcLoading, setAbcLoading] = useState<boolean>(false);
+  const [abcError, setAbcError] = useState<string>('');
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>(() => {
     const saved = localStorage.getItem('theme');
     return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'dark';
@@ -54,6 +70,14 @@ function App() {
     setHtml(data.html);
     setLoading(false);
     setTimerProblemKey(`${data.problem.contestId}/${data.problem.index}`);
+  };
+
+  const [abcTimerKey, setAbcTimerKey] = useState('');
+  const showAbcProblem = (data: PickData) => {
+    setAbcProblem(data.problem);
+    setAbcHtml(data.html);
+    setAbcLoading(false);
+    setAbcTimerKey(`${data.problem.contestId}/${data.problem.id ?? data.problem.index}`);
   };
 
   useEffect(() => {
@@ -88,8 +112,77 @@ function App() {
 
   const requestPick = async (lvl: number): Promise<PickData> => {
     const data: PickData = await fetchJson(`${API_BASE_URL}/api/pick?handle=${handle}&level=${lvl}`, { cache: 'no-store' });
-    preloadRestatement(data.problem, data.html);
+    preloadRestatement({ contestId: Number(data.problem.contestId), index: data.problem.index }, data.html);
     return data;
+  };
+
+  const changeAbcTask = (next: string) => {
+    const upper = next.toUpperCase();
+    if (!(ABC_TASKS as readonly string[]).includes(upper)) return;
+    setAbcTask(upper);
+    localStorage.setItem('abcTask', upper);
+  };
+
+  const stepAbcTask = (delta: number) => {
+    const idx = ABC_TASKS.indexOf(abcTask as (typeof ABC_TASKS)[number]);
+    const nextIdx = Math.min(ABC_TASKS.length - 1, Math.max(0, idx + delta));
+    changeAbcTask(ABC_TASKS[nextIdx]);
+  };
+
+  const requestAbcPick = async (task: string): Promise<PickData> => {
+    return fetchJson(`${API_BASE_URL}/api/atcpick?handle=${handle}&index=${encodeURIComponent(task)}`, { cache: 'no-store' });
+  };
+
+  const abcPrefetchRef = useRef<AbcPrefetchEntry | null>(null);
+
+  const startAbcPrefetch = (task: string) => {
+    const entry: AbcPrefetchEntry = {
+      index: task,
+      promise: requestAbcPick(task).catch(() => null),
+      ts: Date.now(),
+    };
+    entry.promise.then(d => { entry.data = d; });
+    abcPrefetchRef.current = entry;
+  };
+
+  useEffect(() => {
+    if (tab !== 'abc') return;
+    const entry = abcPrefetchRef.current;
+    if (entry && entry.index === abcTask && Date.now() - entry.ts < PREFETCH_STALE_MS) return;
+    const t = setTimeout(() => startAbcPrefetch(abcTask), entry ? 300 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, abcTask]);
+
+  const fetchAbcProblem = async () => {
+    setAbcError('');
+
+    const entry = abcPrefetchRef.current;
+    if (!abcProblem && entry && entry.index === abcTask && Date.now() - entry.ts < PREFETCH_STALE_MS) {
+      if (entry.data) {
+        showAbcProblem(entry.data);
+        return;
+      }
+      if (entry.data === undefined) {
+        setAbcLoading(true);
+        const data = await entry.promise;
+        if (data) {
+          showAbcProblem(data);
+          return;
+        }
+      }
+    }
+
+    setAbcLoading(true);
+    try {
+      const data = await requestAbcPick(abcTask);
+      showAbcProblem(data);
+      abcPrefetchRef.current = { index: abcTask, promise: Promise.resolve(data), data, ts: Date.now() };
+    } catch (err) {
+      setAbcError(err instanceof Error ? err.message : 'Failed to fetch problem. Make sure backend is running.');
+    } finally {
+      setAbcLoading(false);
+    }
   };
 
   // Preload the initial pick and its restatement. Once a problem has been
@@ -299,6 +392,102 @@ function App() {
             </div>
           )}
         </div>
+        <div className={tab === 'abc' ? 'flex-1 flex flex-col' : 'hidden'}>
+          <div className={!abcLoading && !abcError && abcHtml && abcProblem ? '' : 'hidden'}>
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-3">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 focus-within:border-blue-500 transition-colors">
+                <span className="text-slate-500 dark:text-slate-400 text-sm font-medium mr-2">Task</span>
+                <select
+                  value={abcTask}
+                  onChange={(e) => changeAbcTask(e.target.value)}
+                  aria-label="ABC task"
+                  className="bg-transparent text-slate-900 dark:text-white font-semibold outline-none appearance-none cursor-pointer"
+                >
+                  {ABC_TASKS.map(t => (
+                    <option key={t} value={t} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{t}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={fetchAbcProblem}
+                disabled={abcLoading}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all disabled:opacity-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Pick again
+              </button>
+            </div>
+            {abcTimerKey && <ProblemTimer key={abcTimerKey} />}
+          </div>
+          <div className={abcLoading || abcError ? 'hidden' : ''}>
+            {abcHtml && abcProblem && <ProblemContent html={abcHtml} problem={abcProblem} />}
+          </div>
+          {abcLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 animate-pulse">
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-500" />
+              <p className="text-lg">Finding an ABC problem...</p>
+            </div>
+          ) : abcError ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-red-600 dark:text-red-400 space-y-3 bg-red-50 dark:bg-red-950/20 p-6 rounded-2xl border border-red-200 dark:border-red-900/50">
+              <AlertCircle className="w-10 h-10" />
+              <p className="text-center font-medium">{abcError}</p>
+              <button onClick={fetchAbcProblem} className="mt-4 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-lg transition-colors border border-slate-200 dark:border-slate-700">
+                Try Again
+              </button>
+            </div>
+          ) : abcHtml && abcProblem ? null : (
+            <div className="flex-1 flex flex-col items-center justify-center py-8">
+              <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-8 text-center space-y-7 shadow-sm">
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                    ABC Task
+                  </p>
+                  <div className="flex items-center justify-center gap-5">
+                    <button
+                      onClick={() => stepAbcTask(-1)}
+                      disabled={abcTask === ABC_TASKS[0]}
+                      className="w-11 h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      aria-label="Previous task"
+                    >
+                      <Minus className="w-5 h-5" />
+                    </button>
+                    <select
+                      value={abcTask}
+                      onChange={(e) => changeAbcTask(e.target.value)}
+                      className="appearance-none bg-transparent text-center text-6xl font-extrabold tabular-nums text-slate-900 dark:text-white outline-none cursor-pointer w-24"
+                      aria-label="ABC task"
+                    >
+                      {ABC_TASKS.map(t => (
+                        <option key={t} value={t} className="bg-white dark:bg-slate-800 text-base font-normal text-slate-900 dark:text-white">{t}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => stepAbcTask(1)}
+                      disabled={abcTask === ABC_TASKS[ABC_TASKS.length - 1]}
+                      className="w-11 h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors flex items-center justify-center"
+                      aria-label="Next task"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                    Task {abcTask} · AtCoder Beginner Contest
+                  </p>
+                </div>
+                <button
+                  onClick={fetchAbcProblem}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:from-blue-700 active:to-indigo-700 text-white font-semibold rounded-xl transition-all"
+                >
+                  <BookOpen className="w-5 h-5" />
+                  Pick an ABC problem
+                </button>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  The newest unsolved AtCoder ABC problem for this task.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
         <div className={tab === 'rating' ? 'flex-1 flex flex-col' : 'hidden'}>
           <RatingView handle={handle} active={tab === 'rating'} />
         </div>
@@ -373,6 +562,17 @@ function App() {
           >
             <BookOpen className="w-5 h-5" />
             <span className="text-xs font-medium">Pick</span>
+          </button>
+          <button
+            onClick={() => setTab('abc')}
+            className={`flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors ${
+              tab === 'abc'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Compass className="w-5 h-5" />
+            <span className="text-xs font-medium">ABC</span>
           </button>
           <button
             onClick={() => setTab('ranked')}

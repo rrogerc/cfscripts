@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { createDemoApi, demoHtml, demoProblem, demoRestatementHtml } from '../dev/demo-api';
+import { createDemoApi, demoAtcProblem, demoHtml, demoProblem, demoRestatementHtml } from '../dev/demo-api';
 
 test.beforeEach(async ({ page }, testInfo) => {
   const api = createDemoApi();
@@ -585,4 +585,39 @@ test('test-case hover highlights its answer without coloring whole sample blocks
     await pin();
     await expect(activeAnswers).toHaveCount(0);
   }
+});
+
+test('ABC tab picks an AtCoder problem with full statement, sample copy, and atcoder nvim command', async ({ page }) => {
+  await page.evaluate(() => {
+    let copied = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: async (text: string) => { copied = text; },
+      readText: async () => copied,
+    } });
+  });
+  await page.getByRole('button', { name: 'ABC', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'ABC task' })).toHaveValue('C');
+  await page.getByRole('button', { name: 'Next task' }).click();
+  await expect(page.getByRole('combobox', { name: 'ABC task' })).toHaveValue('D');
+  await page.getByRole('button', { name: 'Previous task' }).click();
+  await expect(page.getByRole('combobox', { name: 'ABC task' })).toHaveValue('C');
+
+  await page.getByRole('button', { name: 'Pick an ABC problem', exact: true }).click();
+  await expect(page.locator('.problem-statement .header .title')).toHaveText(demoAtcProblem.name);
+
+  const actions = page.getByRole('group', { name: 'Problem actions' });
+  await expect(actions.getByRole('link', { name: 'Problem page', exact: true }))
+    .toHaveAttribute('href', `https://atcoder.jp/contests/${demoAtcProblem.contestId}/tasks/${demoAtcProblem.id}`);
+  await expect(actions.getByRole('link', { name: 'Submit', exact: true }))
+    .toHaveAttribute('href', `https://atcoder.jp/contests/${demoAtcProblem.contestId}/submit?taskScreenName=${demoAtcProblem.id}`);
+
+  await actions.getByRole('button', { name: 'nvim', exact: true }).click();
+  const command = await page.evaluate(() => navigator.clipboard.readText());
+  expect(command).toContain('mkdir -p ./atcoder');
+  expect(command).toContain(`[ -e "./atcoder/${demoAtcProblem.name}.cpp" ] ||`);
+  expect(command).toContain(`nvim "./atcoder/${demoAtcProblem.name}.cpp"`);
+
+  await page.getByRole('button', { name: 'Copy sample input' }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('3 4 20\n6 7 12\n');
+  await fitsViewport(page);
 });

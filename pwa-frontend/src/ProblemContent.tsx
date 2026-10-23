@@ -8,12 +8,17 @@ import { attachSampleCaseHighlight } from './sampleCases';
 import { cachedRestatement, loadRestatement } from './restatements';
 
 export type Problem = {
-  contestId: number;
+  contestId: number | string;
   index: string;
+  id?: string;
   rating?: number;
   name?: string;
   tags?: string[];
 };
+
+function isAtcoderProblem(problem: Problem): boolean {
+  return typeof problem.contestId === 'string' || Boolean(problem.id);
+}
 
 // Sample-input line map. Per line: which Input-spec paragraph and clause
 // explain it, and the variable behind each individual token. Positions are
@@ -382,21 +387,36 @@ int main() {
 }
 `;
 
+const ATC_CPP_TEMPLATE = `#include <bits/stdc++.h>
+
+using namespace std;
+
+void solve() {
+
+
+}
+
+int main() {
+    solve();
+}
+`;
+
 type Restatement = { key: string; source: string; html?: string; error?: string };
 
 export const ProblemContent = memo(function ProblemContent({ html, problem }: { html: string; problem: Problem }) {
+  const isAtcoder = isAtcoderProblem(problem);
   const [simplified, setSimplified] = useState(true);
   const [result, setResult] = useState<Restatement | null>(null);
   const [attempt, setAttempt] = useState(0);
   const key = `${problem.contestId}/${problem.index}`;
   const current = result?.key === key && result.source === html ? result : null;
-  const simplifiedHtml = current?.html ?? cachedRestatement(problem, html);
+  const simplifiedHtml = isAtcoder ? undefined : (current?.html ?? cachedRestatement({ contestId: Number(problem.contestId), index: problem.index }, html));
   const error = simplifiedHtml ? undefined : current?.error;
 
   useEffect(() => {
-    if (!simplified || simplifiedHtml) return;
+    if (isAtcoder || !simplified || simplifiedHtml) return;
     let cancelled = false;
-    loadRestatement({ contestId: problem.contestId, index: problem.index }, html).then(content => {
+    loadRestatement({ contestId: Number(problem.contestId), index: problem.index }, html).then(content => {
       if (!cancelled) setResult({ key, source: html, html: content });
     }).catch(err => {
       if (!cancelled) setResult({
@@ -406,9 +426,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
     });
     // Keep the shared preload running when a view changes or unmounts.
     return () => { cancelled = true; };
-  }, [simplified, simplifiedHtml, attempt, html, key, problem.contestId, problem.index]);
+  }, [isAtcoder, simplified, simplifiedHtml, attempt, html, key, problem.contestId, problem.index]);
 
-  const controls = (
+  const controls = isAtcoder ? null : (
     <div className="space-y-2">
       <div role="group" aria-label="Statement view" className="flex justify-center gap-2">
         {(['Original', 'Simplified'] as const).map(view => (
@@ -455,9 +475,9 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
   );
 
   return <StatementContent
-    html={simplified && simplifiedHtml ? simplifiedHtml : html}
+    html={!isAtcoder && simplified && simplifiedHtml ? simplifiedHtml : html}
     problem={problem}
-    annotate={!(simplified && simplifiedHtml)}
+    annotate={!isAtcoder && !(simplified && simplifiedHtml)}
     controls={controls}
   />;
 });
@@ -466,6 +486,7 @@ export const ProblemContent = memo(function ProblemContent({ html, problem }: { 
 const StatementContent = memo(function StatementContent({ html, problem, annotate, controls }: {
   html: string; problem: Problem; annotate: boolean; controls: ReactNode;
 }) {
+  const isAtcoder = isAtcoderProblem(problem);
   const contentRef = useRef<HTMLDivElement>(null);
   const [nvimCopied, setNvimCopied] = useState(false);
   // Copy buttons live inside the injected markup, so they are portaled into
@@ -482,7 +503,7 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
   useEffect(() => {
     // Picks already carry tags; ranked/review and older saved problems only
     // carry IDs. Fetch hints separately so cached statement hashes stay valid.
-    if (problem.tags != null) return;
+    if (isAtcoder || problem.tags != null) return;
     const controller = new AbortController();
     const key = `${problem.contestId}/${problem.index}`;
     fetchJson(
@@ -494,7 +515,7 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
       if (!controller.signal.aborted) setTagLookup({ key, unavailable: true });
     });
     return () => controller.abort();
-  }, [problem.contestId, problem.index, problem.tags]);
+  }, [isAtcoder, problem.contestId, problem.index, problem.tags]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -843,12 +864,21 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
   // Seed the file with the template (only when it doesn't exist yet — never
   // clobber in-progress work), then open it. One paste starts the problem.
   const copyNvim = async () => {
-    const file = `./codeforces/${problem.name}.cpp`;
-    const cmd = `mkdir -p ./codeforces\n[ -e "${file}" ] || cat > "${file}" <<'CPP'\n${CPP_TEMPLATE}CPP\nnvim "${file}"`;
+    const dir = isAtcoder ? './atcoder' : './codeforces';
+    const template = isAtcoder ? ATC_CPP_TEMPLATE : CPP_TEMPLATE;
+    const file = `${dir}/${problem.name}.cpp`;
+    const cmd = `mkdir -p ${dir}\n[ -e "${file}" ] || cat > "${file}" <<'CPP'\n${template}CPP\nnvim "${file}"`;
     await navigator.clipboard.writeText(cmd);
     setNvimCopied(true);
     setTimeout(() => setNvimCopied(false), 2000);
   };
+
+  const problemUrl = isAtcoder
+    ? `https://atcoder.jp/contests/${problem.contestId}/tasks/${problem.id ?? `${problem.contestId}_${problem.index.toLowerCase()}`}`
+    : `https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`;
+  const submitUrl = isAtcoder
+    ? `https://atcoder.jp/contests/${problem.contestId}/submit?taskScreenName=${encodeURIComponent(problem.id ?? `${problem.contestId}_${problem.index.toLowerCase()}`)}`
+    : `https://codeforces.com/contest/${problem.contestId}/submit`;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -856,7 +886,7 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
       <div className="mb-6 pb-6 border-b border-slate-200 dark:border-slate-800 space-y-3">
         <div role="group" aria-label="Problem actions" className="flex items-center justify-center gap-1.5 flex-wrap text-sm font-medium text-slate-500 dark:text-slate-400">
           <a
-            href={`https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`}
+            href={problemUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -864,7 +894,7 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
             Problem page
           </a>
           <a
-            href={`https://codeforces.com/contest/${problem.contestId}/submit`}
+            href={submitUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -882,35 +912,41 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
               {nvimCopied ? 'Copied' : 'nvim'}
             </button>
           )}
-          {problem.rating != null && (
+          {isAtcoder ? (
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
+              {String(problem.contestId).toUpperCase()} {problem.index}
+            </span>
+          ) : problem.rating != null ? (
             <span className={`px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 font-bold ${ratingColorClass(problem.rating)}`}>
               {problem.rating}
             </span>
-          )}
+          ) : null}
         </div>
         {controls}
       </div>
 
-      <div
-        role="group"
-        aria-label="Problem tags"
-        aria-live="polite"
-        className="mb-5 flex flex-wrap items-center gap-2 text-sm"
-      >
-        <span className="font-medium text-slate-500 dark:text-slate-400">Tags:</span>
-        {tags?.length ? tags.map(tag => (
-          <span
-            key={tag}
-            className="max-w-full break-words rounded-full border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 text-blue-700 dark:text-blue-300"
-          >
-            {tag}
-          </span>
-        )) : (
-          <span className="text-slate-500 dark:text-slate-400">
-            {tagsUnavailable ? 'Tags unavailable' : tags ? 'No tags listed' : 'Loading tags…'}
-          </span>
-        )}
-      </div>
+      {!isAtcoder && (
+        <div
+          role="group"
+          aria-label="Problem tags"
+          aria-live="polite"
+          className="mb-5 flex flex-wrap items-center gap-2 text-sm"
+        >
+          <span className="font-medium text-slate-500 dark:text-slate-400">Tags:</span>
+          {tags?.length ? tags.map(tag => (
+            <span
+              key={tag}
+              className="max-w-full break-words rounded-full border border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 text-blue-700 dark:text-blue-300"
+            >
+              {tag}
+            </span>
+          )) : (
+            <span className="text-slate-500 dark:text-slate-400">
+              {tagsUnavailable ? 'Tags unavailable' : tags ? 'No tags listed' : 'Loading tags…'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Injected Codeforces HTML — managed via ref, not dangerouslySetInnerHTML */}
       <div
