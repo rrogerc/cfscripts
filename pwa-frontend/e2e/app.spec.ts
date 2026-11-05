@@ -605,6 +605,19 @@ test('ABC tab picks an AtCoder problem with full statement, sample copy, and atc
   await page.getByRole('button', { name: 'Pick an ABC problem', exact: true }).click();
   await expect(page.locator('.problem-statement .header .title')).toHaveText(demoAtcProblem.name);
 
+  // A prose <br> becomes a spacer, so the break stays visible once lines wrap.
+  const statement = page.locator('.problem-statement').first();
+  await expect(statement.locator('br')).toHaveCount(0);
+  const breakGap = await statement.locator('.cf-br').evaluate(el => el.getBoundingClientRect().height);
+  expect(breakGap).toBeGreaterThan(4);
+  // The quoted question is set apart rather than reading as another paragraph.
+  const quote = await statement.locator('blockquote').evaluate(el => {
+    const style = getComputedStyle(el);
+    return { rule: parseFloat(style.borderLeftWidth), indent: parseFloat(style.paddingLeft) };
+  });
+  expect(quote.rule).toBeGreaterThan(0);
+  expect(quote.indent).toBeGreaterThan(0);
+
   const actions = page.getByRole('group', { name: 'Problem actions' });
   await expect(actions.getByRole('link', { name: 'Problem page', exact: true }))
     .toHaveAttribute('href', `https://atcoder.jp/contests/${demoAtcProblem.contestId}/tasks/${demoAtcProblem.id}`);

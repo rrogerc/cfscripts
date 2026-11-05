@@ -131,6 +131,20 @@ function wrapTables(root: HTMLElement) {
   });
 }
 
+/** A <br> in statement prose is a deliberate break: AtCoder ends most
+ * sentences with one. In a narrow column those breaks look exactly like
+ * wrapped lines, so each becomes a block spacer that breaks the line and adds
+ * a small gap (index.css). Chromium and WebKit ignore CSS on <br> itself.
+ * Line-oriented blocks (samples, input formats, tables) keep their <br>s. */
+function spaceLineBreaks(root: HTMLElement) {
+  root.querySelectorAll('br').forEach((br) => {
+    if (br.closest('pre, .atc-io-pre, table')) return;
+    const gap = document.createElement('span');
+    gap.className = 'cf-br';
+    br.replaceWith(gap);
+  });
+}
+
 type SampleInput = { title: HTMLElement; text: string };
 
 /** Every sample input block, as the title to mount a copy button in plus the
@@ -525,6 +539,7 @@ const StatementContent = memo(function StatementContent({ html, problem, annotat
     // Apply to cached statements too, keeping their annotation hash intact.
     cleanStatementTitle(el);
     cleanSampleStarts(el);
+    spaceLineBreaks(el);
     const columns = splitIntoColumns(el);
     wrapTables(el);
     setSampleInputs(collectSampleInputs(el));

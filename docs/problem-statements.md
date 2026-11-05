@@ -128,6 +128,12 @@ server regenerates older maps, and the browser checks the hash before applying
 line or paragraph positions. Ranked browser caches use a new version so saved
 matches reload the statement after the source change.
 
+Line breaks in statement prose get a little extra space, so a deliberate break
+(AtCoder ends most sentences with one) stays distinct from a wrapped line at any
+width. Samples, input formats and tables keep their own line spacing. Block
+quotes, which AtCoder uses to set apart the problem to solve, have a left rule
+and a tinted background.
+
 Tables have visible cell borders, padding, alignment and a keyboard-accessible
 horizontal scroll region on narrow screens. Model prompts retain cell
 boundaries and repeat merged values so commands stay attached to their results.

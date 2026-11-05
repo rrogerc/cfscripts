@@ -163,6 +163,29 @@ body {
   margin-bottom: 1rem;
 }
 
+/* Replaces a prose <br> (spaceLineBreaks in ProblemContent): more room than
+   a wrapped line, less than a paragraph, so sentences stay distinct at any
+   column width. */
+.problem-statement .cf-br {
+  display: block;
+  height: 0.5em;
+}
+
+/* AtCoder quotes the problem to solve ("For each k, solve the following
+   problem."). Preflight strips the browser's indent, which left it looking
+   like any other paragraph. */
+.problem-statement blockquote {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-left-width: 3px;
+  border-radius: 0 0.375rem 0.375rem 0;
+  @apply border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/60;
+}
+
+.problem-statement blockquote > :last-child {
+  margin-bottom: 0;
+}
+
 .problem-statement .cf-col-main,
 .problem-statement .cf-col-side {
   min-width: 0;

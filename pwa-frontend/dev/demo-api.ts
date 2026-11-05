@@ -67,7 +67,12 @@ export const demoAtcHtml = `
     <div class="memory-limit"><div class="property-title">memory limit per test</div>1024 MiB</div>
   </div>
   <div>
-    <p>Takahashi is using a shower with a button that runs hot water for $$$K$$$ seconds after each press.</p>
+    <p>Takahashi is using a shower with a button that runs hot water for $$$K$$$ seconds after each press.<br>
+    He wants hot water to keep running until time $$$T$$$.</p>
+    <p>Answer the following question.</p>
+    <blockquote>
+    <p>What is the minimum number of presses needed?</p>
+    </blockquote>
     <div class="section-title">Constraints</div>
     <ul>
       <li>$$$1 \\le N \\le 2 \\times 10^5$$$</li>
