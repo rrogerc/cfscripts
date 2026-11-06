@@ -7,16 +7,16 @@ import requests as req
 
 from . import printer
 
-# Per-contest data (rating changes, standings) stays cached indefinitely. These
-# lists grow with every new contest, so they expire, and an upstream outage
-# falls back to the stale copy. requests-cache fixes a response's expiry when it
-# is stored, so changing these rules needs a new cache name to drop old entries.
+# Per-contest data (rating changes, standings) stays cached indefinitely once
+# final; callers drop provisional results with invalidate(). These lists grow
+# with every new contest, so they expire, and an upstream outage falls back to
+# the stale copy. requests-cache fixes a response's expiry when it is stored, so
+# a change to what this cache keeps needs a new cache name to drop old entries.
 _LIST_EXPIRY = timedelta(hours=1)
 _long_session = CachedSession(
-    'cf-cache-long-v2',
+    'cf-cache-long-v3',
     backend='filesystem',
     use_temp=True,
-    match_headers=True,
     urls_expire_after={
         'codeforces.com/api/problemset.problems': _LIST_EXPIRY,
         'kenkoooo.com/atcoder/resources/problems.json': _LIST_EXPIRY,
@@ -29,7 +29,6 @@ _short_session = CachedSession(
     'cf-cache-short',
     backend='filesystem',
     use_temp=True,
-    match_headers=True,
     expire_after=120,
 )
 
@@ -110,7 +109,12 @@ def get_results(url, cache_type=CACHE_NONE):
 
 
 def invalidate(url, cache_type=CACHE_LONG):
-    """Drop a cached response so the next call refetches it."""
+    """Drop a cached response so the next call refetches it.
+
+    This deletes by URL, which only finds entries because the sessions key by
+    URL alone: with match_headers, keys also cover request headers and the
+    delete silently misses.
+    """
     try:
         if cache_type == CACHE_SHORT:
             _short_session.cache.delete(urls=[url])

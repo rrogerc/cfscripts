@@ -1,7 +1,7 @@
 from urllib.parse import quote_plus
 import re
 
-from .api import get_results, CACHE_SHORT, CACHE_LONG
+from .api import get_results, invalidate, CACHE_SHORT, CACHE_LONG
 from .submissions import get_submissions
 
 def get_contests():
@@ -28,6 +28,10 @@ def get_contest_and_standings(contest_id, cache_type=CACHE_LONG):
         quote_plus(str(contest_id))
     )
     results = get_results(url, cache_type)
+    if cache_type == CACHE_LONG and results["contest"].get("phase") != "FINISHED":
+        # Hacks and system tests change results until the contest finishes, so
+        # a snapshot from before then must not become the permanent copy.
+        invalidate(url, CACHE_LONG)
     return results["contest"], results["problems"], results["rows"]
 
 def get_participated_contest_ids(handle, contest_map=None):
