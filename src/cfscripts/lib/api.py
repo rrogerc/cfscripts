@@ -1,3 +1,4 @@
+from datetime import timedelta
 from time import sleep
 import json
 from requests_cache.session import CachedSession
@@ -6,11 +7,22 @@ import requests as req
 
 from . import printer
 
+# Per-contest data (rating changes, standings) stays cached indefinitely. These
+# lists grow with every new contest, so they expire, and an upstream outage
+# falls back to the stale copy. requests-cache fixes a response's expiry when it
+# is stored, so changing these rules needs a new cache name to drop old entries.
+_LIST_EXPIRY = timedelta(hours=1)
 _long_session = CachedSession(
-    'cf-cache-long',
+    'cf-cache-long-v2',
     backend='filesystem',
     use_temp=True,
     match_headers=True,
+    urls_expire_after={
+        'codeforces.com/api/problemset.problems': _LIST_EXPIRY,
+        'kenkoooo.com/atcoder/resources/problems.json': _LIST_EXPIRY,
+        'kenkoooo.com/atcoder/resources/contests.json': _LIST_EXPIRY,
+    },
+    stale_if_error=True,
 )
 
 _short_session = CachedSession(
