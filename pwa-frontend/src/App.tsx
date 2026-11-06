@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, AlertCircle, BookOpen, Compass, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus } from 'lucide-react';
+import { RefreshCw, AlertCircle, BookOpen, Compass, Sun, Moon, Monitor, TrendingUp, Swords, Settings, X, Minus, Plus, Check } from 'lucide-react';
 import { API_BASE_URL, fetchJson } from './api';
 import { ratingColorClass } from './colors';
 import { ProblemContent, type Problem } from './ProblemContent';
@@ -27,6 +27,30 @@ type AbcPrefetchEntry = {
 };
 
 const PREFETCH_STALE_MS = 60_000;
+
+// AtCoder Problems learns about ACs by crawling AtCoder, which can take hours,
+// so ABC problems marked Solved are excluded locally until it catches up.
+// Marks only need to outlast that delay, so they expire after a week.
+const ABC_MARKS_KEY = 'abcMarkedSolved';
+const ABC_MARK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Unexpired marks, as problem ID -> time marked (ms). */
+function readAbcMarks(): Record<string, number> {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(ABC_MARKS_KEY) ?? '{}');
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+    const cutoff = Date.now() - ABC_MARK_TTL_MS;
+    return Object.fromEntries(
+      Object.entries(saved).filter(([, ts]) => typeof ts === 'number' && ts > cutoff),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function markAbcSolved(id: string) {
+  localStorage.setItem(ABC_MARKS_KEY, JSON.stringify({ ...readAbcMarks(), [id]: Date.now() }));
+}
 
 const MIN_LEVEL = 8;
 const MAX_LEVEL = 32;
@@ -130,7 +154,9 @@ function App() {
   };
 
   const requestAbcPick = async (task: string): Promise<PickData> => {
-    return fetchJson(`${API_BASE_URL}/api/atcpick?handle=${handle}&index=${encodeURIComponent(task)}`, { cache: 'no-store' });
+    const params = new URLSearchParams({ handle, index: task });
+    for (const id of Object.keys(readAbcMarks())) params.append('exclude', id);
+    return fetchJson(`${API_BASE_URL}/api/atcpick?${params}`, { cache: 'no-store' });
   };
 
   const abcPrefetchRef = useRef<AbcPrefetchEntry | null>(null);
@@ -183,6 +209,14 @@ function App() {
     } finally {
       setAbcLoading(false);
     }
+  };
+
+  // Pick again keeps serving a problem until AtCoder Problems crawls its AC.
+  // The mark is saved before the request, so a failed pick's retry keeps it.
+  const solveAbcProblem = () => {
+    if (!abcProblem?.id) return;
+    markAbcSolved(abcProblem.id);
+    fetchAbcProblem();
   };
 
   // Preload the initial pick and its restatement. Once a problem has been
@@ -415,6 +449,15 @@ function App() {
               >
                 <RefreshCw className="w-4 h-4" />
                 Pick again
+              </button>
+              <button
+                onClick={solveAbcProblem}
+                disabled={abcLoading}
+                title="Mark solved and pick the next problem"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white transition-all disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                Solved
               </button>
             </div>
             {abcTimerKey && <ProblemTimer key={abcTimerKey} />}

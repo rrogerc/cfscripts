@@ -101,6 +101,13 @@ accepted problems are excluded as soon as Codeforces' API reports them. If the
 same problem remains unsolved, its timer and rendered statement are preserved.
 A failed check shows an error, and Retry performs another fresh check.
 
+The ABC tab reads accepted submissions from AtCoder Problems instead, which
+crawls AtCoder contest by contest, so a fresh AC can take hours to appear.
+**Solved** saves the shown problem's ID in browser storage and picks again.
+Every ABC pick, including the launch preload, sends saved IDs as `exclude`, and
+the server treats them as solved. Marks expire after a week, since they only
+need to outlast the crawl.
+
 Samples, resource limits, tables, and diagrams are copied from the saved original
 HTML. Interaction and other unusual contract sections remain verbatim. Generated
 prose uses the existing safe Markdown renderer and preserves Codeforces math.

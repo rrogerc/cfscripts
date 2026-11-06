@@ -97,6 +97,24 @@ class PickerRefreshTests(unittest.TestCase):
         self.assertEqual(second.json()["problem"]["id"], "abc479_c")
         self.assertEqual(checks.call_args_list, [call("Exonerate", CACHE_NONE), call("Exonerate", CACHE_NONE)])
 
+    def test_atcoder_pick_treats_excluded_ids_as_solved_before_atcoder_problems_crawls_them(self):
+        problems = [
+            {"id": "abc480_c", "contest_id": "abc480", "problem_index": "C", "name": "Latest C"},
+            {"id": "abc479_c", "contest_id": "abc479", "problem_index": "C", "name": "Previous C"},
+        ]
+        client = TestClient(server.app)
+        # AtCoder Problems still reports nothing solved, as when its crawl lags.
+        with patch.object(picker, "get_atcoder_problems", return_value=problems), \
+             patch.object(picker, "get_abc_contest_ids", return_value={"abc479", "abc480"}), \
+             patch.object(picker, "get_user_accepted_problems", return_value=set()), \
+             patch.object(server, "get_atcoder_problem_html", return_value="<div>ABC Statement</div>"):
+            marked = client.get("/api/atcpick?handle=Exonerate&index=c&exclude=abc480_c")
+            all_marked = client.get("/api/atcpick?handle=Exonerate&index=c&exclude=abc480_c&exclude=abc479_c")
+
+        self.assertEqual(marked.status_code, 200)
+        self.assertEqual(marked.json()["problem"]["id"], "abc479_c")
+        self.assertEqual(all_marked.status_code, 404)
+
     def test_extract_atcoder_statement_preserves_math_limits_samples_and_notes(self):
         html = extract_atcoder_statement(
             ATCODER_PAGE, "abc480", "abc480_c", "https://atcoder.jp/contests/abc480/tasks/abc480_c"

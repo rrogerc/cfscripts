@@ -69,9 +69,17 @@ def pick_problem(handle: str, level: int):
 
 
 @app.get("/api/atcpick")
-def pick_atcoder_problem(handle: str, index: str):
+def pick_atcoder_problem(handle: str, index: str, exclude: list[str] = Query(default=[])):
+    """Newest unsolved ABC problem for a task letter.
+
+    Solved status comes from AtCoder Problems, which crawls AtCoder, so a fresh
+    AC can take hours to appear there. `exclude` carries the problem IDs the
+    client marked solved in the meantime.
+    """
     try:
-        best = get_abc_problem_by_index(handle, index, use_solved=True, solved_cache=CACHE_NONE)
+        best = get_abc_problem_by_index(
+            handle, index, use_solved=True, solved_cache=CACHE_NONE, exclude=exclude,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

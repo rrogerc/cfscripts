@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import { createDemoApi, demoAtcProblem, demoHtml, demoProblem, demoRestatementHtml } from '../dev/demo-api';
+import { createDemoApi, demoAtcHtml, demoAtcProblem, demoHtml, demoProblem, demoRestatementHtml } from '../dev/demo-api';
 
 test.beforeEach(async ({ page }, testInfo) => {
   const api = createDemoApi();
@@ -633,4 +633,45 @@ test('ABC tab picks an AtCoder problem with full statement, sample copy, and atc
   await page.getByRole('button', { name: 'Copy sample input' }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('3 4 20\n6 7 12\n');
   await fitsViewport(page);
+});
+
+test('Solved skips an ABC problem AtCoder Problems has not crawled, across reloads, until the mark expires', async ({ page }) => {
+  await page.goto('about:blank');
+  const nextProblem = { ...demoAtcProblem, id: 'abc899_c', contest_id: 'abc899', contestId: 'abc899', name: 'Next Unsolved Shower' };
+  const nextHtml = demoAtcHtml.replaceAll(demoAtcProblem.name, nextProblem.name);
+  const excludes: string[][] = [];
+  await page.route('**/api/atcpick?**', route => {
+    const exclude = new URL(route.request().url()).searchParams.getAll('exclude').sort();
+    excludes.push(exclude);
+    // The crawl never catches up here, so only the local mark can skip it.
+    return route.fulfill({ json: exclude.includes(demoAtcProblem.id)
+      ? { problem: nextProblem, html: nextHtml }
+      : { problem: demoAtcProblem, html: demoAtcHtml } });
+  });
+  await page.goto('/');
+  await page.evaluate(() => {
+    const day = 24 * 60 * 60 * 1000;
+    localStorage.setItem('abcMarkedSolved', JSON.stringify({
+      abc700_c: Date.now() - 8 * day, abc701_c: Date.now() - day,
+    }));
+  });
+  const title = page.locator('.problem-statement .header .title');
+  const pickAbc = async () => {
+    await page.getByRole('button', { name: 'ABC', exact: true }).click();
+    await page.getByRole('button', { name: 'Pick an ABC problem', exact: true }).click();
+  };
+
+  await pickAbc();
+  await expect(title).toHaveText(demoAtcProblem.name);
+  expect(excludes.at(-1)).toEqual(['abc701_c']);
+
+  await page.getByRole('button', { name: 'Solved', exact: true }).click();
+  await expect(title).toHaveText(nextProblem.name);
+  expect(excludes.at(-1)).toEqual(['abc701_c', demoAtcProblem.id]);
+  await fitsViewport(page);
+
+  await page.reload();
+  await pickAbc();
+  await expect(title).toHaveText(nextProblem.name);
+  expect(excludes.at(-1)).toEqual(['abc701_c', demoAtcProblem.id]);
 });

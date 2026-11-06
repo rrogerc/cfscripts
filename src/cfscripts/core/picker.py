@@ -108,13 +108,18 @@ def _fetch_abc_inputs(handle, use_solved=True, solved_cache=CACHE_SHORT):
     return problems, abc_contests, solved
 
 
-def get_abc_problem_by_index(handle, index_letter, use_solved=True, solved_cache=CACHE_SHORT):
-    """Return the latest unsolved AtCoder ABC problem matching the task letter, or None."""
+def get_abc_problem_by_index(handle, index_letter, use_solved=True, solved_cache=CACHE_SHORT, exclude=()):
+    """Return the latest unsolved AtCoder ABC problem matching the task letter, or None.
+
+    exclude holds extra problem IDs to treat as solved: ACs the user reported
+    before AtCoder Problems crawled them.
+    """
     letter = index_letter.strip().lower()
     if len(letter) != 1 or not letter.isalpha():
         raise ValueError("Problem index must be a single letter (e.g., A, B, C).")
 
     problems, abc_contests, solved = _fetch_abc_inputs(handle, use_solved, solved_cache)
+    solved = solved | set(exclude)
 
     candidates = [
         p for p in problems
