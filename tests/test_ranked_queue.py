@@ -46,6 +46,7 @@ class StatementProviderTests(unittest.TestCase):
     def test_uses_complete_original_english_html(self):
         with patch.object(provider.requests, "get", return_value=response()) as get:
             statement = provider.fetch_statement(2049, "C")
+        self.assertEqual(get.call_count, 1)
         self.assertEqual(get.call_args.args[0], "https://codeforces.me/problemset/problem/2049/C?locale=en")
         self.assertEqual(get.call_args.kwargs["headers"]["Accept"], "text/html")
         self.assertEqual(get.call_args.kwargs["timeout"], (5, 15))
@@ -99,11 +100,26 @@ class StatementProviderTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 provider.render_statement(payload, 2049, "C")
 
+    def test_codeforces_covers_mirror_outages(self):
+        challenge = response()
+        challenge._content = b"<html>Please verify your browser</html>"
+        for failure in [response(503), challenge, Timeout()]:
+            with self.subTest(failure=failure), patch.object(
+                provider.requests, "get", side_effect=[failure, response()]
+            ) as get:
+                statement = provider.fetch_statement(2049, "C")
+            self.assertEqual([call.args[0] for call in get.call_args_list], [
+                "https://codeforces.me/problemset/problem/2049/C?locale=en",
+                "https://codeforces.com/problemset/problem/2049/C?locale=en",
+            ])
+            self.assertEqual(statement.source_url, get.call_args.args[0])
+            self.assertIn("Test Problem", statement.html)
+
     def test_transport_errors_and_challenge_pages_are_readable_errors(self):
         challenge = response()
         challenge._content = b"<html>Please verify your browser</html>"
         for result in [response(403), response(429), challenge, Timeout()]:
-            with self.subTest(result=result), patch.object(provider.requests, "get", side_effect=[result]):
+            with self.subTest(result=result), patch.object(provider.requests, "get", side_effect=[result, result]):
                 with self.assertRaisesRegex(provider.ProblemUnavailable, "problem statement"):
                     provider.fetch_statement(2049, "C")
 

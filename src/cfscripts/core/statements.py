@@ -2,7 +2,8 @@
 
 Luogu's Markdown renderer remains available for existing imports, but its data
 can lose tables before conversion. New statements use the original HTML from
-the Codeforces mirror and are persisted by the web layer.
+the Codeforces mirror, or codeforces.com when the mirror fails, and are
+persisted by the web layer.
 """
 
 import logging
@@ -176,20 +177,29 @@ def _sanitize_statement_html(raw_html, source_url):
     )
 
 
+# The mirror comes first because codeforces.com has served the server Cloudflare
+# challenges; codeforces.com covers mirror outages. Both serve the same page, so
+# one validation accepts either, and a challenge page fails it like any error.
+_STATEMENT_HOSTS = ("codeforces.me", "codeforces.com")
+
+
 def fetch_statement(contest_id, index):
     if not isinstance(contest_id, int) or contest_id <= 0 or not re.fullmatch(r"[A-Z][0-9]?", index):
         raise ValueError("Invalid Codeforces problem identifier")
-    url = f"https://codeforces.me/problemset/problem/{contest_id}/{index}?locale=en"
-    try:
-        response = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
-        response.raise_for_status()
-        html = extract_statement(response.text, contest_id, index, url)
-    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError) as exc:
-        logger.warning("Could not load statement data from %s: %s", url, exc)
-        raise ProblemUnavailable(
-            "The problem statement is temporarily unavailable. Please try again shortly."
-        ) from exc
-    return Statement(html=html, source_url=url)
+    for host in _STATEMENT_HOSTS:
+        url = f"https://{host}/problemset/problem/{contest_id}/{index}?locale=en"
+        try:
+            response = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+            response.raise_for_status()
+            html = extract_statement(response.text, contest_id, index, url)
+        except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError) as exc:
+            logger.warning("Could not load statement data from %s: %s", url, exc)
+            error = exc
+            continue
+        return Statement(html=html, source_url=url)
+    raise ProblemUnavailable(
+        "The problem statement is temporarily unavailable. Please try again shortly."
+    ) from error
 
 
 def extract_atcoder_statement(page_html, contest_id, problem_id, source_url):

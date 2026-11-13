@@ -1,7 +1,8 @@
 # Problem statement source
 
 Problem statements retain the complete English HTML from the Codeforces mirror
-at `codeforces.me` and are saved in Postgres. Queuing, reopening a match, match review and statement-based helpers
+at `codeforces.me`, or from `codeforces.com` when the mirror fails, and are
+saved in Postgres. Queuing, reopening a match, match review and statement-based helpers
 all read the same saved HTML. Codeforces' official API still supplies ratings,
 problem selection and submission verdicts.
 
@@ -30,9 +31,16 @@ not affect match logic. Luogu's renderer remains for existing imports/tests but
 is not a silent fallback: a successful response containing flattened tables
 would still be a broken statement.
 
+On November 13, 2026 the mirror's origin went down and returned a 503 for every
+page, so `codeforces.com` became the fallback. It serves the same page, which
+passes the same validation. Codeforces may still challenge the server; a
+challenge page fails validation, ending in the same readable error as before.
+
 ## Request and validation
 
 Request `GET https://codeforces.me/problemset/problem/{contest_id}/{index}?locale=en`.
+If the request fails or the page fails validation, the same path is requested
+from `codeforces.com`. The saved source URL records which host served it.
 
 The adapter verifies the full problem ID in the page title, English section
 headings, limits and samples. Only `.problem-statement` is retained, then `nh3`
@@ -49,7 +57,7 @@ a provider outage must not invalidate a usable statement. A cache hit makes no
 statement-provider request. A cache miss fetches and persists the statement
 before a ranked match can start, preserving the player's full 25 minutes.
 
-An uncached problem still needs the mirror to be available. Existing cached problems
+An uncached problem still needs the mirror or `codeforces.com` to be available. Existing cached problems
 and match statements continue to load during a provider outage. This does not
 make ratings or submission checks independent of Codeforces' official API.
 Diagrams retain their image URLs and still require the image host to be reachable.
